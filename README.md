@@ -1,164 +1,131 @@
 # PolicyClaw
 
-Claw back what your insurer will not tell you.
+**Claw back control from policy confusion.**
 
-PolicyClaw is an AI-powered insurance decision intelligence app for Malaysian policyholders. It helps users understand policy documents, detect overlap, project premium impact, and make a Keep/Switch/Downgrade/Dump decision with citations and confidence.
+PolicyClaw is an AI decision-intelligence product that turns dense insurance PDFs into clear, evidence-backed recommendations. In minutes, users can see what they are paying for, where policies overlap, what rights they can act on, and whether to keep, switch, downgrade, or dump.
 
-This repository follows the product direction in [PRD.md](PRD.md).
+## Problem
 
-## Why PolicyClaw
+Insurance policyholders face a decision paralysis problem:
 
-Malaysia policyholders face complex policy language, repricing pressure, and low visibility into rights and overlap. PolicyClaw is built as decision support, not automation:
+- Policy documents are long, technical, and hard to compare.
+- Benefits and exclusions are easy to miss.
+- Policy overlap creates hidden waste.
+- Most users do not know their rights under BNM guidance.
 
-- Interpret structured and unstructured insurance data
-- Provide context-aware recommendations
-- Explain outputs with citations and confidence
-- Support multilingual user understanding
+The result is poor decisions made under uncertainty: overpaying, underprotected coverage, and delayed action.
 
-## Current Build Status
+## Solution
 
-Implemented in this codebase:
+PolicyClaw combines document understanding and AI reasoning into one decision flow:
 
-- Core MVP flow
-- Policy upload metadata intake
-- Premium simulation and verdict engine
-- AI feature scaffolding with mock and real-mode switching
-- Frontend UI for upload, analysis, and AI feature cards
+1. Ingest policy PDF(s) and extract structured policy details.
+2. Retrieve relevant evidence chunks from source documents.
+3. Run AI analysis for coverage quality, overlap risk, and rights detection.
+4. Return a final verdict with confidence and citations.
 
-AI-heavy features are scaffolded and return realistic mock responses by default. When `GLM_API_KEY` is configured, the architecture is ready for real GLM integration points in the backend service layer.
+This is decision support, not blind automation: users can review and edit extracted fields before analysis.
 
-## Repository Structure
+## Key Features
 
-- [PRD.md](PRD.md): Product requirements document
-- [AI_INTEGRATION_GUIDE.md](AI_INTEGRATION_GUIDE.md): AI feature integration guide
-- [AI_SCAFFOLDING_SUMMARY.md](AI_SCAFFOLDING_SUMMARY.md): Scaffolding summary
-- [backend](backend): FastAPI backend
-- [frontend](frontend): Next.js frontend
+### Policy X-Ray
+Transforms complex policy text into a clear summary of plan type, premium, coverage limit, dates, and riders.
 
+### Overlap Detection
+Identifies duplicate or unnecessary coverage across policy documents to surface avoidable spend.
 
-## User Workflow
+### BNM Rights Scanner
+Flags relevant Bank Negara Malaysia consumer-rights signals found in policy wording.
 
-1. **Upload Policy PDF(s):**
-	- Drag and drop or select one or more insurance policy PDFs in Step 1.
-	- PolicyClaw auto-extracts key fields (insurer, plan, coverage, etc.) using real AI (GLM-5.1) if configured, or mock extraction if not.
-	- If multiple policies are detected, select the correct one from the dropdown.
+### Verdict Engine
+Outputs a direct action recommendation: **Keep**, **Switch**, **Downgrade**, or **Dump** with reasons, confidence score, and supporting citations.
 
-2. **Review and Confirm Fields:**
-	- Step 2 auto-populates detected fields (editable if not detected).
-	- "Monthly Income" is required for analysis ("Income Growth" is no longer present).
-	- Confirm or edit any field as needed.
+## How It Works
 
-3. **Analyze Policy:**
-	- The "Analyze Policy" button is now centered below the Riders/Add-ons field for clarity.
-	- Click to run real AI analysis (if GLM API is configured) or mock analysis (if not).
-	- Results include a Keep/Switch/Downgrade/Dump verdict, projected savings, overlap/rights detection, summary reasons, and citations with page numbers.
+1. **Upload PDF(s):** User uploads one or more insurance policies.
+2. **Auto-Extraction:** Backend extracts candidate policy profiles and auto-fills fields.
+3. **Human Review:** User confirms or edits values (including required monthly income).
+4. **AI Analysis:** System runs retrieval + LLM analysis against the uploaded content.
+5. **Decision Output:** UI presents verdict, projected savings, overlap/rights signals, and citations.
 
-## Quickstart (Windows PowerShell)
+## Tech Stack
 
-### 1. Install backend dependencies
+- **Frontend:** Next.js, React, TypeScript
+- **Backend:** FastAPI, Pydantic
+- **AI + Retrieval:** GLM integration (Ilmu/BigModel-compatible), PDF parsing, chunking, retrieval pipeline
+- **Document Processing:** pypdf
+- **Transport:** HTTP multipart uploads + JSON APIs
+
+## Project Structure
+
+- [PRD.md](PRD.md) - Product requirements and scope
+- [backend](backend) - FastAPI services and AI/document pipeline
+- [frontend](frontend) - Next.js product interface
+
+## Setup
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 20+
+
+### 1) Install backend dependencies
 
 ```powershell
 c:/Users/USER/Documents/policyclaw/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
 ```
 
-### 2. Run backend
+### 2) Configure backend environment
+
+Use [backend/.env.example](backend/.env.example) as reference. Key variables:
+
+- `GLM_API_KEY=`
+- `GLM_API_BASE=https://open.bigmodel.cn/api/paas/v4`
+- `GLM_MODEL=glm-5.1`
+- `DEBUG=false`
+
+### 3) Run backend
 
 ```powershell
 c:/Users/USER/Documents/policyclaw/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload
 ```
 
+Backend:
 
-Backend URLs:
-- API base: http://127.0.0.1:8000
-- Swagger docs: http://127.0.0.1:8000/docs
+- API: http://127.0.0.1:8000
+- Docs: http://127.0.0.1:8000/docs
 
-### 3. Install frontend dependencies
+### 4) Install and run frontend
 
 ```powershell
 cd frontend
 npm install
 copy .env.local.example .env.local
-```
-
-### 4. Run frontend
-
-```powershell
 npm run dev
 ```
 
-Open:
+Frontend:
 
-- http://127.0.0.1:3000
+- App: http://127.0.0.1:3000
 
-If port 3000 is occupied:
+## API Surface
 
-```powershell
-npm run dev -- --port 3001
-```
+### Current production flow
 
-## Environment Configuration
+- `POST /api/extract-policy-profile` - Extract structured policy profile(s) from uploaded PDF(s)
+- `POST /api/analyze` - Execute full analysis and return verdict, reasons, confidence, and citations
 
-Backend environment template is available at [backend/.env.example](backend/.env.example).
+### Legacy compatibility endpoints
 
-Key variables:
-
-- `GLM_API_KEY=`
-- `GLM_API_BASE=https://open.bigmodel.cn/api/paas/v4`
-- `GLM_MODEL=glm-4-flash`
-- `DEBUG=false`
-
-When `GLM_API_KEY` is empty, the backend runs in mock mode for AI endpoints.
-
-
-## API Endpoints
-
-### Core endpoints
 - `GET /health`
-- `POST /v1/policies/upload` (legacy)
-- `POST /v1/simulate/premium` (legacy)
-- `POST /v1/verdict` (legacy)
+- `POST /v1/policies/upload`
+- `POST /v1/simulate/premium`
+- `POST /v1/verdict`
 
-### Real AI endpoints (current UI uses these)
-- `POST /api/extract-policy-profile` — Extracts policy fields from uploaded PDF(s) using GLM-5.1 (or mock if not configured). Returns one or more detected policy profiles.
-- `POST /api/analyze` — Runs full policy analysis on the selected/extracted profile and PDF(s). Returns verdict, savings, overlap, rights, summary reasons, and citations.
+## Why This Matters
 
-### AI endpoints (legacy/scaffolded)
-- `POST /v1/ai/policy-xray`
-- `POST /v1/ai/overlap-map`
-- `POST /v1/ai/bnm-rights-scanner`
-- `POST /v1/ai/voice-interrogation`
-- `GET /v1/ai/multilingual-explainer/{subject}`
-- `GET /v1/ai/citations/{analysis_id}`
-- `GET /v1/ai/status`
-
-
-## UI/UX Notes
-
-- The "Analyze Policy" button is now centered below the Riders/Add-ons field in Step 2 for improved clarity and accessibility.
-- The "Income Growth" field has been removed; only "Monthly Income" is required for analysis.
-- All fields are auto-filled from PDF extraction when possible, but remain editable.
-
-## Product Scope Alignment
-
-This project is aligned to the PRD focus areas:
-
-- F1 Policy X-Ray
-- F2 Overlap Map
-- F3 Premium Crystal Ball
-- F4 BNM Rights Scanner
-- F5 Keep-Switch-Dump Verdict
-- F7 Voice Interrogation
-- F9 Multi-lingual Explainer
-- F11 Citation Vault and confidence
-
-For detailed feature specs and acceptance criteria, see [PRD.md](PRD.md).
-
-## Notes for Judges and Reviewers
-
-- This is a hackathon prototype optimized for clarity and demonstrability
-- AI outputs are schema-validated and confidence-scored
-- Recommendations are decision support outputs, not licensed financial advice
+PolicyClaw converts insurance from a trust-heavy black box into a transparent decision system. The product goal is simple: faster, clearer, and more defensible policy decisions for everyday policyholders.
 
 ## Disclaimer
 
-PolicyClaw is a decision-support prototype and not a licensed financial advisor. Users remain responsible for final financial decisions.
+PolicyClaw provides decision support only and is not licensed financial advice.
