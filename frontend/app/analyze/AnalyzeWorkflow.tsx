@@ -472,10 +472,23 @@ export default function AnalyzeWorkflow() {
                 required
               />
             </label>
-            <button type="submit" disabled={loading || extracting}>
+          </form>
+          <div style={{ display: "flex", justifyContent: "center", marginTop: "1.5rem" }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                // Find the form element and trigger submit
+                const formEl = e.currentTarget.closest(".step-card")?.querySelector("form");
+                if (formEl) {
+                  formEl.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+                }
+              }}
+              disabled={loading || extracting}
+              style={{ minWidth: 220 }}
+            >
               {loading ? "Analyzing..." : "Analyze Policy"}
             </button>
-          </form>
+          </div>
         </article>
       </section>
 

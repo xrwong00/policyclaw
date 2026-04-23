@@ -35,6 +35,24 @@ AI-heavy features are scaffolded and return realistic mock responses by default.
 - [backend](backend): FastAPI backend
 - [frontend](frontend): Next.js frontend
 
+
+## User Workflow
+
+1. **Upload Policy PDF(s):**
+	- Drag and drop or select one or more insurance policy PDFs in Step 1.
+	- PolicyClaw auto-extracts key fields (insurer, plan, coverage, etc.) using real AI (GLM-5.1) if configured, or mock extraction if not.
+	- If multiple policies are detected, select the correct one from the dropdown.
+
+2. **Review and Confirm Fields:**
+	- Step 2 auto-populates detected fields (editable if not detected).
+	- "Monthly Income" is required for analysis ("Income Growth" is no longer present).
+	- Confirm or edit any field as needed.
+
+3. **Analyze Policy:**
+	- The "Analyze Policy" button is now centered below the Riders/Add-ons field for clarity.
+	- Click to run real AI analysis (if GLM API is configured) or mock analysis (if not).
+	- Results include a Keep/Switch/Downgrade/Dump verdict, projected savings, overlap/rights detection, summary reasons, and citations with page numbers.
+
 ## Quickstart (Windows PowerShell)
 
 ### 1. Install backend dependencies
@@ -49,8 +67,8 @@ c:/Users/USER/Documents/policyclaw/.venv/Scripts/python.exe -m pip install -r ba
 c:/Users/USER/Documents/policyclaw/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload
 ```
 
-Backend URLs:
 
+Backend URLs:
 - API base: http://127.0.0.1:8000
 - Swagger docs: http://127.0.0.1:8000/docs
 
@@ -91,17 +109,20 @@ Key variables:
 
 When `GLM_API_KEY` is empty, the backend runs in mock mode for AI endpoints.
 
+
 ## API Endpoints
 
-Core endpoints:
-
+### Core endpoints
 - `GET /health`
-- `POST /v1/policies/upload`
-- `POST /v1/simulate/premium`
-- `POST /v1/verdict`
+- `POST /v1/policies/upload` (legacy)
+- `POST /v1/simulate/premium` (legacy)
+- `POST /v1/verdict` (legacy)
 
-AI endpoints (scaffolded):
+### Real AI endpoints (current UI uses these)
+- `POST /api/extract-policy-profile` — Extracts policy fields from uploaded PDF(s) using GLM-5.1 (or mock if not configured). Returns one or more detected policy profiles.
+- `POST /api/analyze` — Runs full policy analysis on the selected/extracted profile and PDF(s). Returns verdict, savings, overlap, rights, summary reasons, and citations.
 
+### AI endpoints (legacy/scaffolded)
 - `POST /v1/ai/policy-xray`
 - `POST /v1/ai/overlap-map`
 - `POST /v1/ai/bnm-rights-scanner`
@@ -109,6 +130,13 @@ AI endpoints (scaffolded):
 - `GET /v1/ai/multilingual-explainer/{subject}`
 - `GET /v1/ai/citations/{analysis_id}`
 - `GET /v1/ai/status`
+
+
+## UI/UX Notes
+
+- The "Analyze Policy" button is now centered below the Riders/Add-ons field in Step 2 for improved clarity and accessibility.
+- The "Income Growth" field has been removed; only "Monthly Income" is required for analysis.
+- All fields are auto-filled from PDF extraction when possible, but remain editable.
 
 ## Product Scope Alignment
 
