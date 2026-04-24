@@ -1,13 +1,14 @@
 """
 AI Service Layer for PolicyClaw.
 
-This module orchestrates calls to Z.AI's GLM-4.6 API.
+This module orchestrates calls to a GLM-compatible chat-completions API.
 When GLM_API_KEY is not set, all functions return carefully crafted mock responses.
 When GLM_API_KEY is set, functions call the real API.
 
 Environment variables:
-  - GLM_API_KEY: Your Z.AI API key (leave empty for mock mode)
-  - GLM_API_BASE: Z.AI API endpoint (default: https://open.bigmodel.cn/api/paas/v4)
+  - GLM_API_KEY: Your GLM provider API key (leave empty for mock mode)
+  - GLM_API_BASE: GLM API endpoint (default: https://api.ilmu.ai/v1)
+  - GLM_MODEL: GLM model identifier (default: ilmu-glm-5.1)
 """
 
 from __future__ import annotations
@@ -68,9 +69,9 @@ class AIServiceConfig:
 
     def __init__(self):
         self.api_key = os.getenv("GLM_API_KEY", "").strip()
-        self.api_base = os.getenv("GLM_API_BASE", "https://open.bigmodel.cn/api/paas/v4")
+        self.api_base = os.getenv("GLM_API_BASE", "https://api.ilmu.ai/v1").strip()
         self.is_mock_mode = not self.api_key
-        self.model = os.getenv("GLM_MODEL", "glm-4-flash").strip() or "glm-4-flash"
+        self.model = os.getenv("GLM_MODEL", "ilmu-glm-5.1").strip() or "ilmu-glm-5.1"
 
     @property
     def enabled(self) -> bool:
@@ -181,15 +182,7 @@ async def _call_glm_policy_xray(policy_input: PolicyInput, policy_id: str) -> Po
         ],
     }
 
-    response = await _post_glm_with_retry(url=url, headers=headers, payload=payload)
-
-    if response.status_code >= 400:
-        raise RuntimeError(
-            f"GLM API request failed ({response.status_code}): {response.text[:400]}"
-        )
-
-    response_json = response.json()
-    content = response_json["choices"][0]["message"]["content"]
+    content = await _post_glm_with_retry(url=url, headers=headers, payload=payload)
     parsed = _extract_json_from_content(content)
 
     parsed["policy_id"] = policy_id
@@ -289,15 +282,7 @@ async def _call_glm_policy_verdict(
         ],
     }
 
-    response = await _post_glm_with_retry(url=url, headers=headers, payload=payload)
-
-    if response.status_code >= 400:
-        raise RuntimeError(
-            f"GLM API request failed ({response.status_code}): {response.text[:400]}"
-        )
-
-    response_json = response.json()
-    content = response_json["choices"][0]["message"]["content"]
+    content = await _post_glm_with_retry(url=url, headers=headers, payload=payload)
     parsed = _extract_json_from_content(content)
 
     verdict_value = str(parsed.get("verdict", "")).lower()
@@ -389,17 +374,40 @@ def _heuristic_policy_verdict(policy: PolicyInput, realistic_10y_cost_myr: float
     )
 
 
-async def _post_glm_with_retry(url: str, headers: dict[str, str], payload: dict) -> httpx.Response:
-    """Post to GLM endpoint with bounded retries for transient network/provider slowness."""
+async def _post_glm_with_retry(url: str, headers: dict[str, str], payload: dict) -> str:
+    """Post to GLM endpoint with streaming to avoid gateway timeouts. Returns accumulated content."""
+    streaming_payload = {**payload, "stream": True}
     attempts = 3
     backoff_seconds = 1.5
     last_exc: Exception | None = None
 
     for attempt in range(1, attempts + 1):
         try:
-            timeout = httpx.Timeout(90.0, connect=20.0)
+            timeout = httpx.Timeout(120.0, connect=20.0)
             async with httpx.AsyncClient(timeout=timeout) as client:
-                return await client.post(url, headers=headers, json=payload)
+                async with client.stream("POST", url, headers=headers, json=streaming_payload) as response:
+                    if response.status_code >= 400:
+                        body = await response.aread()
+                        raise RuntimeError(
+                            f"GLM API error {response.status_code}: {body[:400].decode(errors='replace')}"
+                        )
+                    parts: list[str] = []
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        chunk = line[6:].strip()
+                        if chunk == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(chunk)
+                            choices = data.get("choices")
+                            if not choices:
+                                continue
+                            delta = choices[0]["delta"].get("content") or ""
+                            parts.append(delta)
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+                    return "".join(parts)
         except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError) as exc:
             last_exc = exc
             if attempt < attempts:

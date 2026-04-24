@@ -77,16 +77,39 @@ def _normalize_analyze_payload(parsed: dict) -> dict:
     return normalized
 
 
-async def _post_with_retry(url: str, headers: dict[str, str], payload: dict) -> httpx.Response:
+async def _post_with_retry(url: str, headers: dict[str, str], payload: dict) -> str:
+    streaming_payload = {**payload, "stream": True}
     retries = 3
     delay = 1.5
     last_error: Exception | None = None
 
     for attempt in range(retries):
         try:
-            timeout = httpx.Timeout(90.0, connect=20.0)
+            timeout = httpx.Timeout(120.0, connect=20.0)
             async with httpx.AsyncClient(timeout=timeout) as client:
-                return await client.post(url, headers=headers, json=payload)
+                async with client.stream("POST", url, headers=headers, json=streaming_payload) as response:
+                    if response.status_code >= 400:
+                        body = await response.aread()
+                        raise RuntimeError(
+                            f"GLM API error {response.status_code}: {body[:300].decode(errors='replace')}"
+                        )
+                    parts: list[str] = []
+                    async for line in response.aiter_lines():
+                        if not line.startswith("data: "):
+                            continue
+                        chunk = line[6:].strip()
+                        if chunk == "[DONE]":
+                            break
+                        try:
+                            data = json.loads(chunk)
+                            choices = data.get("choices")
+                            if not choices:
+                                continue
+                            delta = choices[0]["delta"].get("content") or ""
+                            parts.append(delta)
+                        except (json.JSONDecodeError, KeyError):
+                            pass
+                    return "".join(parts)
         except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError) as exc:
             last_error = exc
             if attempt < retries - 1:
@@ -184,12 +207,7 @@ async def run_ai_analysis(
         ],
     }
 
-    response = await _post_with_retry(url=url, headers=headers, payload=payload)
-    if response.status_code >= 400:
-        raise RuntimeError(f"Ilmu API error {response.status_code}: {response.text[:300]}")
-
-    response_json = response.json()
-    content = response_json["choices"][0]["message"]["content"]
+    content = await _post_with_retry(url=url, headers=headers, payload=payload)
     parsed = _normalize_analyze_payload(_extract_json_object(content))
 
     return AnalyzeResponse.model_validate(parsed)
