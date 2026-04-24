@@ -43,13 +43,18 @@ Don't erode either of these while refactoring — they're the differentiator.
 
 ## Commands
 
-Backend (from repo root):
+Backend uses a venv at `backend/.venv/` — install and run from `backend/` with the venv activated:
 
 ```bash
-python -m pip install -r backend/requirements.txt
-python -m uvicorn app.main:app --app-dir backend --reload
+cd backend
+# First time only: python -m venv .venv
+source .venv/Scripts/activate          # PowerShell: .venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+uvicorn app.main:app --reload          # NOT `--app-dir backend` from inside backend/
 # API: http://127.0.0.1:8000   Docs: http://127.0.0.1:8000/docs   Health: /health
 ```
+
+Do **not** install requirements against the system Python — uvicorn imports from the venv's site-packages and will throw `ModuleNotFoundError` (e.g. `tenacity`) if deps go elsewhere. If running from the repo root instead, the equivalent is `backend/.venv/Scripts/python -m uvicorn app.main:app --app-dir backend --reload`.
 
 Frontend:
 
