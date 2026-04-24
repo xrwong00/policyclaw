@@ -16,3 +16,4 @@ frontend/tsconfig.tsbuildinfo
 .claude/settings.local.json
 .claude/worktrees/
 .gstack/
+backend/data/demo_cache/
