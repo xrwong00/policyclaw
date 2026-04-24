@@ -33,14 +33,44 @@ export type ClawViewResponse = {
   confidence_band: ConfidenceBand;
 };
 
-export async function postClawView(file: File): Promise<ClawViewResponse> {
+const CLAWVIEW_CLIENT_TIMEOUT_MS = 90_000;
+
+async function fetchClawViewOnce(file: File): Promise<Response> {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await fetch(`${API_BASE}/v1/clawview`, {
+  return fetch(`${API_BASE}/v1/clawview`, {
     method: "POST",
     body: form,
+    signal: AbortSignal.timeout(CLAWVIEW_CLIENT_TIMEOUT_MS),
   });
+}
+
+function isNetworkError(err: unknown): boolean {
+  // Browser fetch throws TypeError for network-level failures ("Failed to fetch",
+  // DNS errors, server closed connection). AbortSignal.timeout fires DOMException
+  // with name "TimeoutError" — treat both as retryable network errors.
+  if (err instanceof TypeError) return true;
+  if (err instanceof DOMException && err.name === "TimeoutError") return true;
+  return false;
+}
+
+export async function postClawView(file: File): Promise<ClawViewResponse> {
+  let res: Response;
+  try {
+    res = await fetchClawViewOnce(file);
+  } catch (err) {
+    if (!isNetworkError(err)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    try {
+      res = await fetchClawViewOnce(file);
+    } catch (retryErr) {
+      if (!isNetworkError(retryErr)) throw retryErr;
+      throw new Error(
+        `ClawView request failed: network error — is the backend running at ${API_BASE}?`
+      );
+    }
+  }
 
   if (!res.ok) {
     const detail = await res.text().catch(() => "");

@@ -61,7 +61,7 @@ def test_call_glm_annotate_parses_streaming_json_and_merges_bboxes(
         }
     )
 
-    async def fake_post(*, url: str, headers: dict, payload: dict) -> str:  # noqa: ARG001
+    async def fake_post(*, url: str, headers: dict, payload: dict, **_: object) -> str:  # noqa: ARG001
         assert payload["response_format"] == {"type": "json_object"}
         assert any(m["role"] == "system" for m in payload["messages"])
         return canned
@@ -109,7 +109,7 @@ def test_call_glm_annotate_drops_unknown_clause_ids(monkeypatch: pytest.MonkeyPa
         }
     )
 
-    async def fake_post(*, url: str, headers: dict, payload: dict) -> str:  # noqa: ARG001
+    async def fake_post(*, url: str, headers: dict, payload: dict, **_: object) -> str:  # noqa: ARG001
         return canned
 
     monkeypatch.setattr(clawview_service, "post_glm_with_retry", fake_post)

@@ -109,7 +109,7 @@ async def analyze_policy_xray(policy_input, policy_id):
 Replace the `TODO` sections with actual GLM calls. Every live GLM call in this
 repo routes through the shared streaming helper in `backend/app/core/glm_client.py`
 — streaming is required because Ilmu's gateway closes non-streamed connections past
-~60s, and the helper owns the 3-attempt transport retry + 120s read timeout. Mirror
+~60s, and the helper owns the transport retry + read timeout (default 3 attempts / 120s; callers can override per call — ClawView uses `attempts=2, read_timeout_s=30.0` so Annotate degrades fast). Mirror
 this pattern (see `ai_service._call_glm_policy_xray` for the canonical example):
 
 ```python

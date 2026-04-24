@@ -670,9 +670,21 @@ export default function AnalyzeWorkflow() {
                     <p style={{ margin: 0, opacity: 0.7 }}>Loading PDF annotations…</p>
                   )}
                   {clawViewError && (
-                    <p style={{ margin: 0, color: "#b91c1c" }} role="alert">
-                      ClawView error: {clawViewError}
-                    </p>
+                    <div role="alert">
+                      <p style={{ margin: 0, color: "#b91c1c" }}>
+                        ClawView error: {clawViewError}
+                      </p>
+                      {selectedFiles[0] && (
+                        <button
+                          type="button"
+                          style={{ marginTop: 12 }}
+                          onClick={() => void fetchClawView(selectedFiles[0])}
+                          disabled={clawViewLoading}
+                        >
+                          {clawViewLoading ? "Retrying…" : "Retry ClawView"}
+                        </button>
+                      )}
+                    </div>
                   )}
                   {!clawViewLoading && !clawViewError && !clawView && (
                     <p style={{ margin: 0, opacity: 0.7 }}>

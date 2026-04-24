@@ -104,6 +104,8 @@ async def post_glm_with_retry(
     *,
     attempts: int = 3,
     initial_backoff_s: float = 1.5,
+    read_timeout_s: float = 120.0,
+    connect_timeout_s: float = 20.0,
 ) -> str:
     """POST to GLM with SSE streaming; concat `delta.content` chunks and return.
 
@@ -116,7 +118,7 @@ async def post_glm_with_retry(
 
     for attempt in range(1, attempts + 1):
         try:
-            timeout = httpx.Timeout(120.0, connect=20.0)
+            timeout = httpx.Timeout(read_timeout_s, connect=connect_timeout_s)
             async with httpx.AsyncClient(timeout=timeout) as client:
                 async with client.stream(
                     "POST", url, headers=headers, json=streaming_payload

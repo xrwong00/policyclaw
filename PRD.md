@@ -265,7 +265,7 @@ policyclaw/
 
 ### 9.2 Reliability
 
-- All GLM calls route through the streaming `post_glm_with_retry` helper: **3 attempts, exponential backoff on transport errors, 120s httpx read timeout per call.** Non-streamed calls would fail — Ilmu's gateway drops them past ~60s.
+- All GLM calls route through the streaming `post_glm_with_retry` helper with exponential backoff on transport errors. Default per-call budget: **3 attempts / 120s httpx read timeout**. Callers can override per call — ClawView's Annotate tightens to **2 attempts / 30s** so a slow Ilmu response degrades to the heuristic mock within ~60s instead of hanging the frontend. Non-streamed calls would fail — Ilmu's gateway drops them past ~60s.
 - Graceful degradation: if **Annotate** fails, ClawView shows "limited annotation available" — rest of flow continues.
 - Persist AI outputs to Supabase before UI consumes (enables Realtime replay). MVP: in-memory cache.
 
