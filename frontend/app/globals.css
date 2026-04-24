@@ -1143,6 +1143,23 @@ select {
   background: rgba(255, 255, 255, 0.93);
 }
 
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200, 79, 51, 0.18);
+}
+
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+.dropzone:focus-within {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(200, 79, 51, 0.35);
+  border-radius: inherit;
+}
+
 button {
   border: none;
   border-radius: 12px;
