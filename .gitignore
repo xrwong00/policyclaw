@@ -17,3 +17,5 @@ frontend/tsconfig.tsbuildinfo
 .claude/worktrees/
 .gstack/
 backend/data/demo_cache/
+# Playwright MCP runtime artifacts
+.playwright-mcp/
