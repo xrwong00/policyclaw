@@ -53,11 +53,18 @@ export default function ClawViewDemoPage() {
 
   return (
     <main style={{ padding: "32px 24px", maxWidth: 1120, margin: "0 auto" }}>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: "1.6rem" }}>ClawView demo</h1>
-        <p style={{ margin: "4px 0 0", color: "var(--muted, #39574c)" }}>
-          Upload a policy PDF to see clause-level risk highlights. Click a
-          highlight for a plain-language explanation in EN or BM.
+      <header style={{ marginBottom: 24 }}>
+        <p className="eyebrow" style={{ margin: 0 }}>ClawView</p>
+        <h1
+          className="hero-headline"
+          style={{ fontSize: "clamp(1.8rem, 3vw, 2.6rem)", marginTop: 6 }}
+        >
+          See the risks hiding in your policy.
+        </h1>
+        <p style={{ margin: "10px 0 0", color: "var(--muted, #39574c)", maxWidth: "60ch" }}>
+          Upload a policy PDF to get clause-level risk highlights overlaid on
+          the page. Click any highlight for a plain-language explanation in EN
+          or BM.
         </p>
       </header>
 
