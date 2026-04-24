@@ -106,7 +106,7 @@ body {
   border: 2px solid var(--accent);
   font-weight: 700;
   min-height: 48px;
-  transition: all 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .cta-secondary:hover {
@@ -259,7 +259,7 @@ body {
   padding: 20px;
   display: grid;
   gap: 12px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .feature-card:hover {
@@ -307,7 +307,7 @@ body {
   padding: 24px 20px;
   display: grid;
   gap: 12px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .step-card:hover {
@@ -358,7 +358,7 @@ body {
   padding: 20px;
   display: grid;
   gap: 10px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .trust-item:hover {
@@ -448,7 +448,7 @@ body {
   padding: 20px;
   display: grid;
   gap: 14px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .ai-feature-card:hover {
@@ -888,7 +888,7 @@ body {
   font-size: 0.95rem;
   cursor: pointer;
   border: none;
-  transition: all 140ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
 .hero h1,
