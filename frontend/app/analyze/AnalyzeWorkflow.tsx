@@ -368,8 +368,6 @@ export default function AnalyzeWorkflow() {
     }
   };
 
-  const notDetected = (value: string) => (value ? value : "Not detected");
-
   return (
     <main className="page">
       <section
@@ -457,7 +455,6 @@ export default function AnalyzeWorkflow() {
                 onChange={(e) => setForm({ ...form, insurer_name: e.target.value })}
                 placeholder="Not detected"
               />
-              <small>{notDetected(form.insurer_name)}</small>
             </label>
             <label>
               Policyholder Name
@@ -466,7 +463,6 @@ export default function AnalyzeWorkflow() {
                 onChange={(e) => setForm({ ...form, policyholder_name: e.target.value })}
                 placeholder="Not detected"
               />
-              <small>{notDetected(form.policyholder_name)}</small>
             </label>
             <label>
               Plan Name
@@ -475,7 +471,6 @@ export default function AnalyzeWorkflow() {
                 onChange={(e) => setForm({ ...form, plan_name: e.target.value })}
                 placeholder="Not detected"
               />
-              <small>{notDetected(form.plan_name)}</small>
             </label>
             <label>
               Policy Type
