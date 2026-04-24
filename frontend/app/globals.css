@@ -276,7 +276,8 @@ body {
 .feature-card h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
-  font-size: 1.1rem;
+  font-size: 1.35rem;
+  line-height: 1.2;
   color: var(--ink);
 }
 
@@ -327,7 +328,8 @@ body {
 .step-card h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
-  font-size: 1.1rem;
+  font-size: 1.35rem;
+  line-height: 1.2;
   color: var(--ink);
 }
 
@@ -375,7 +377,8 @@ body {
 .trust-item h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
-  font-size: 1rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
   color: var(--ink);
 }
 
