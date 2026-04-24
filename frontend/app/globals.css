@@ -62,6 +62,7 @@ body {
   line-height: 1.1;
   margin: 0;
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .hero-subtitle {
@@ -242,6 +243,7 @@ body {
   font-size: clamp(1.6rem, 3vw, 2.2rem);
   line-height: 1.15;
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .feature-grid {
@@ -408,6 +410,7 @@ body {
   font-family: 'Fraunces', serif;
   font-size: clamp(1.5rem, 2.5vw, 2rem);
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .landing-final-cta p {
