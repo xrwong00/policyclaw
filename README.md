@@ -89,15 +89,20 @@ Outputs a direct action recommendation — **Keep**, **Switch**, **Downgrade**, 
 
 ### 1) Backend dependencies
 
+The backend uses a venv at `backend/.venv/`. Install and run from `backend/` with the venv activated:
+
 ```bash
-python -m venv .venv
+cd backend
+python -m venv .venv           # first time only
 # macOS/Linux:
 source .venv/bin/activate
 # Windows PowerShell:
 .venv\Scripts\Activate.ps1
 
-python -m pip install -r backend/requirements.txt
+pip install -r requirements.txt
 ```
+
+Do **not** install requirements against the system Python — uvicorn loads from `backend/.venv` and will throw `ModuleNotFoundError` (e.g. `tenacity`) if deps go elsewhere.
 
 ### 2) Backend environment
 
@@ -114,9 +119,13 @@ Without `GLM_API_KEY`, the backend falls back to mock GLM responses — the flow
 
 ### 3) Run backend
 
+From `backend/` with the venv activated (continuing from §1):
+
 ```bash
-python -m uvicorn app.main:app --app-dir backend --reload
+uvicorn app.main:app --reload
 ```
+
+Do **not** add `--app-dir backend` when cwd is already `backend/` — it doubles the path and fails with `No module named 'app'`. Equivalent from the repo root: `backend/.venv/Scripts/python -m uvicorn app.main:app --app-dir backend --reload`.
 
 - API: http://127.0.0.1:8000
 - Docs: http://127.0.0.1:8000/docs
