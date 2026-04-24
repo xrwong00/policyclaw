@@ -1,17 +1,24 @@
 # PolicyClaw AI Features — Integration Guide
 
-This document describes how to use and configure the 7 AI-powered features that have been scaffolded for PolicyClaw.
+This document describes how to use and configure the AI-powered features in PolicyClaw. The F1/F2/F7/F9/F11 entries below are the original scaffolded endpoints that still return mock data unless `GLM_API_KEY` is set; the Wow-Factor entries are the two fully-shipped demos.
+
+> **Live feature status is tracked in `CLAUDE.md`.** This guide focuses on how to wire the `/v1/ai/*` scaffolds and demo flows.
 
 ## Features Overview
 
 | Feature | ID | Status | Endpoint |
 |---------|----|---------|---------:|
+| **ClawView** (Wow Factor 1) | F4 | **Shipped** | `POST /v1/clawview` |
+| **FutureClaw — Affordability** (Wow Factor 2) | F6 | **Shipped** | `POST /v1/simulate/affordability` |
+| **FutureClaw — Life Event** (Wow Factor 2) | F6 | **Shipped** | `POST /v1/simulate/life-event` |
 | Policy X-Ray | F1 | Scaffolded | `POST /v1/ai/policy-xray` |
 | Overlap Map | F2 | Scaffolded | `POST /v1/ai/overlap-map` |
-| BNM Rights Scanner | F4 | Scaffolded | `POST /v1/ai/bnm-rights-scanner` |
+| BNM Rights Scanner | F4* | Scaffolded | `POST /v1/ai/bnm-rights-scanner` |
 | Voice Policy Interrogation | F7 | Scaffolded | `POST /v1/ai/voice-interrogation` |
 | Multi-lingual Explainer | F9 | Scaffolded | `GET /v1/ai/multilingual-explainer/{subject}` |
 | Citation Vault + Confidence | F11 | Scaffolded | `GET /v1/ai/citations/{analysis_id}` |
+
+*F4 is used in two places in the PRD — ClawView (the Wow Factor 1 clause-risk overlay) and the BNM Rights Scanner scaffold. They live behind different endpoints.
 
 ## Current State
 
@@ -221,37 +228,14 @@ GET /v1/ai/status
 
 ## Frontend Components
 
-All frontend components are in `frontend/app/components/AIFeatures.tsx`:
+The original `frontend/app/components/AIFeatures.tsx` scaffolded-feature card deck has been removed; rebuild per-feature components as the scaffolded endpoints are lifted out of mock mode.
 
-- `<AIStatusBanner />` — Shows if AI is active
-- `<PolicyXRayCard />` — F1 UI
-- `<OverlapMapCard />` — F2 UI
-- `<BNMRightsScannerCard />` — F4 UI
-- `<VoiceInterrogationCard />` — F7 UI
+Live Wow-Factor components ship under `frontend/app/analyze/components/`:
 
-You can import and use them in your pages:
+- `ClawViewOverlay.tsx` + `PdfViewer.tsx` — F4 / Wow Factor 1 risk overlay on the policy PDF.
+- `FutureClawSimulator.tsx` (parent toggle) + `AffordabilitySimulator.tsx` + `LifeEventSimulator.tsx` — F6 / Wow Factor 2 10-year Monte Carlo simulator.
 
-```tsx
-import {
-  AIStatusBanner,
-  PolicyXRayCard,
-  OverlapMapCard,
-  BNMRightsScannerCard,
-  VoiceInterrogationCard,
-} from "@/app/components/AIFeatures";
-
-export default function AnalyzePage() {
-  return (
-    <main>
-      <AIStatusBanner />
-      <PolicyXRayCard policyId="policy-1" />
-      <OverlapMapCard policyCount={2} />
-      <BNMRightsScannerCard />
-      <VoiceInterrogationCard />
-    </main>
-  );
-}
-```
+These are self-contained client components using Recharts + Framer Motion; they fetch from the live backend routes listed in the Features Overview table.
 
 ## Mock Data Behavior
 
@@ -329,19 +313,28 @@ curl http://127.0.0.1:8000/v1/ai/status
 policyclaw/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              # FastAPI routes (new: 6 AI endpoints)
-│   │   ├── schemas.py            # Pydantic models (new: 7 response types)
+│   │   ├── main.py                         # FastAPI routes
+│   │   ├── schemas.py                      # Pydantic contracts
 │   │   └── services/
-│   │       ├── ai_service.py     # NEW: AI orchestration layer
-│   │       ├── simulation.py     # Existing: Premium projection
-│   │       └── verdict.py        # Existing: Verdict generation
-│   ├── .env                      # NEW: Environment config (create this)
-│   └── .env.example              # NEW: Template for .env
+│   │       ├── ai_service.py               # GLM client + mock fallback for /v1/ai/*
+│   │       ├── analyze_service.py          # /api/analyze orchestration
+│   │       ├── profile_extraction_service.py
+│   │       ├── clawview_service.py         # F4 / Wow 1
+│   │       ├── futureclaw_narrative.py     # F6 / Wow 2 GLM narrative
+│   │       ├── simulation.py               # F6 Monte Carlo + legacy premium projection
+│   │       ├── pdf_parser.py               # PyMuPDF extraction
+│   │       ├── rag.py, verdict.py
+│   │   └── schemas.py                      # Pydantic contracts
+│   ├── data/bnm_corpus/                    # BNM inflation + LIAM/PIAM/MTA cost citations
+│   ├── tests/                              # pytest suite (run: pytest backend/tests/ -q)
+│   ├── .env.example                        # Template for .env (GLM_API_KEY lives here)
 └── frontend/
     └── app/
-        ├── components/
-        │   └── AIFeatures.tsx     # NEW: React components for all features
-        └── globals.css            # Updated: AI component styling
+        ├── analyze/
+        │   ├── AnalyzeWorkflow.tsx         # Main analyze page
+        │   └── components/                 # ClawView + FutureClaw components
+        ├── clawview-demo/page.tsx          # Standalone ClawView demo route
+        └── globals.css
 ```
 
 ## Questions?

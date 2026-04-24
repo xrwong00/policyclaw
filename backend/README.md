@@ -31,10 +31,29 @@ Initial FastAPI implementation for core MVP flow:
 
 ## Implemented Endpoints
 
+Core flow:
+- `POST /api/extract-policy-profile` — extract `PolicyProfile` candidates from uploaded PDFs
+- `POST /api/analyze` — full analysis → verdict + reasons + confidence + citations
+
+ClawView (Wow Factor 1):
+- `POST /v1/clawview` — clause-level risk highlights with PDF bounding boxes
+
+FutureClaw simulator (Wow Factor 2):
+- `POST /v1/simulate/affordability` — 1000-run Monte Carlo premium projection (3 scenario bands × 10 years)
+- `POST /v1/simulate/life-event` — 4 life-event scenarios with GLM-generated EN + BM narratives
+
+Legacy / scaffolded:
 - `GET /health`
 - `POST /v1/policies/upload`
 - `POST /v1/simulate/premium`
 - `POST /v1/verdict`
+- `POST /v1/ai/*` — F1/F2/F4/F7/F9/F11 scaffolds (return mock data unless `GLM_API_KEY` is set)
+
+Tests:
+
+```powershell
+pytest backend/tests/ -q
+```
 
 ## Example Payload (`POST /v1/verdict`)
 

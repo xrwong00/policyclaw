@@ -1,5 +1,7 @@
 # 🚀 PolicyClaw AI Scaffolding — Summary
 
+> **⚠️ Historical record.** This document captures the initial AI-feature scaffolding (F1/F2/F4/F7/F9/F11 as mock endpoints). Since then, ClawView (F4 / Wow 1) and FutureClaw (F6 / Wow 2) have shipped as full implementations on top of that scaffold. The original `frontend/app/components/AIFeatures.tsx` card deck was removed in a follow-up cleanup. For current live feature status see **`CLAUDE.md`** and **`AI_INTEGRATION_GUIDE.md`**.
+
 **Status:** ✅ Complete — All 7 AI features fully scaffolded and production-ready
 
 ## What's Been Done
@@ -34,7 +36,7 @@
   - Already added to `.gitignore` for security
 
 ### Frontend (Next.js/React)
-- ✅ **React Components** (`app/components/AIFeatures.tsx`):
+- ✅ **React Components** (originally in `app/components/AIFeatures.tsx` — _since removed; superseded by per-feature components under `app/analyze/components/` for ClawView and FutureClaw, and rebuilt per-feature as scaffolds graduate out of mock mode_):
   - `<AIStatusBanner />` — Shows mock/GLM status
   - `<PolicyXRayCard />` — F1 UI with analysis demo
   - `<OverlapMapCard />` — F2 UI with visualization
