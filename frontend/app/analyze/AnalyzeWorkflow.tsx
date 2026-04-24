@@ -1,6 +1,6 @@
 "use client";
 
-import { DragEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 import ActionSummary from "./components/ActionSummary";
@@ -146,6 +146,10 @@ export default function AnalyzeWorkflow() {
   const [clawView, setClawView] = useState<ClawViewResponse | null>(null);
   const [clawViewLoading, setClawViewLoading] = useState(false);
   const [clawViewError, setClawViewError] = useState<string | null>(null);
+  // Monotonic request token — any in-flight ClawView request whose token
+  // no longer matches is discarded, so a slow response for an older upload
+  // cannot clobber the annotations of the current one.
+  const clawViewRequestIdRef = useRef(0);
 
   const fileNames = useMemo(
     () => selectedFiles.map((file) => file.name).join(", "),
@@ -194,12 +198,33 @@ export default function AnalyzeWorkflow() {
       if (first) {
         setSelectedProfileId(first.option_id);
         setForm((current) => applyProfileToForm(current, first));
+      } else {
+        // Extractor produced no candidates — clear any stale fields from a
+        // previous upload so the next /api/analyze isn't seeded by the old
+        // policy's metadata.
+        setSelectedProfileId("");
+        setForm((current) => ({
+          ...current,
+          insurer_name: "",
+          policyholder_name: "",
+          plan_name: "",
+          policy_type: "",
+          premium_amount: "",
+          premium_frequency: "",
+          currency: "",
+          effective_date: "",
+          renewal_date: "",
+          coverage_limit: "",
+          riders: "",
+        }));
       }
 
       setStatus(
         payload.profiles.length > 1
           ? `Detected ${payload.profiles.length} policy options. Review and choose one.`
-          : "Policy fields detected. Review and confirm before analysis."
+          : payload.profiles.length === 1
+            ? "Policy fields detected. Review and confirm before analysis."
+            : "No policy fields detected. Fill in Step 2 manually."
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown extraction error";
@@ -224,6 +249,8 @@ export default function AnalyzeWorkflow() {
     setResult(null);
     setClawView(null);
     setClawViewError(null);
+    // Invalidate any in-flight ClawView request from a previous file.
+    clawViewRequestIdRef.current += 1;
     void populateFromUpload(valid);
   };
 
@@ -251,16 +278,23 @@ export default function AnalyzeWorkflow() {
   };
 
   const fetchClawView = async (file: File) => {
+    const requestId = ++clawViewRequestIdRef.current;
     setClawViewLoading(true);
     setClawViewError(null);
     try {
       const data = await postClawView(file);
+      // Discard response if another request has since superseded this one
+      // (e.g. user uploaded a different PDF and re-ran Analyze mid-flight).
+      if (requestId !== clawViewRequestIdRef.current) return;
       setClawView(data);
     } catch (err) {
+      if (requestId !== clawViewRequestIdRef.current) return;
       setClawView(null);
       setClawViewError(err instanceof Error ? err.message : "ClawView failed");
     } finally {
-      setClawViewLoading(false);
+      if (requestId === clawViewRequestIdRef.current) {
+        setClawViewLoading(false);
+      }
     }
   };
 

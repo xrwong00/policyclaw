@@ -171,11 +171,16 @@ def _verdict_citations(verdict: PolicyVerdict) -> list[AnalysisCitation]:
         page = 1
         locator_lower = (reason.citation.locator or "").lower()
         for token in locator_lower.replace(":", " ").replace(",", " ").split():
+            # Skip date-shaped tokens like "2024-12-31" or "2024/12/31" —
+            # they'd otherwise collapse to an absurd page number (20241231).
+            if sum(1 for ch in token if ch in "-/.") >= 2:
+                continue
             digits = "".join(ch for ch in token if ch.isdigit())
-            if digits:
+            # Cap at 4 digits (real policies rarely exceed 9999 pages).
+            if digits and len(digits) <= 4:
                 try:
                     candidate = int(digits)
-                    if candidate >= 1:
+                    if 1 <= candidate <= 9999:
                         page = candidate
                         break
                 except ValueError:
