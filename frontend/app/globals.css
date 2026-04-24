@@ -8,6 +8,7 @@
   --accent: #c84f33;
   --panel: rgba(255, 255, 255, 0.82);
   --border: rgba(16, 36, 30, 0.14);
+  color-scheme: light;
 }
 
 * {
@@ -61,6 +62,7 @@ body {
   line-height: 1.1;
   margin: 0;
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .hero-subtitle {
@@ -105,7 +107,7 @@ body {
   border: 2px solid var(--accent);
   font-weight: 700;
   min-height: 48px;
-  transition: all 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease;
 }
 
 .cta-secondary:hover {
@@ -241,6 +243,7 @@ body {
   font-size: clamp(1.6rem, 3vw, 2.2rem);
   line-height: 1.15;
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .feature-grid {
@@ -258,7 +261,7 @@ body {
   padding: 20px;
   display: grid;
   gap: 12px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .feature-card:hover {
@@ -275,7 +278,8 @@ body {
 .feature-card h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
-  font-size: 1.1rem;
+  font-size: 1.35rem;
+  line-height: 1.2;
   color: var(--ink);
 }
 
@@ -306,7 +310,7 @@ body {
   padding: 24px 20px;
   display: grid;
   gap: 12px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .step-card:hover {
@@ -326,7 +330,8 @@ body {
 .step-card h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
-  font-size: 1.1rem;
+  font-size: 1.35rem;
+  line-height: 1.2;
   color: var(--ink);
 }
 
@@ -357,7 +362,7 @@ body {
   padding: 20px;
   display: grid;
   gap: 10px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .trust-item:hover {
@@ -374,7 +379,8 @@ body {
 .trust-item h3 {
   margin: 0;
   font-family: 'Fraunces', serif;
-  font-size: 1rem;
+  font-size: 1.25rem;
+  line-height: 1.2;
   color: var(--ink);
 }
 
@@ -404,6 +410,7 @@ body {
   font-family: 'Fraunces', serif;
   font-size: clamp(1.5rem, 2.5vw, 2rem);
   color: var(--ink);
+  text-wrap: balance;
 }
 
 .landing-final-cta p {
@@ -412,6 +419,85 @@ body {
   line-height: 1.6;
   color: var(--muted);
   max-width: 50ch;
+}
+
+/* ===== CLAWVIEW LEGEND (empty state) ===== */
+.clawview-legend {
+  margin-top: 28px;
+  display: grid;
+  gap: 10px;
+}
+
+.legend-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.legend-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  backdrop-filter: blur(6px);
+  padding: 18px 20px;
+  display: grid;
+  gap: 10px;
+  position: relative;
+}
+
+.legend-chip {
+  display: inline-block;
+  width: 36px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.legend-red {
+  border-color: rgba(200, 79, 51, 0.35);
+}
+.legend-red .legend-chip {
+  background: linear-gradient(90deg, #c84f33, #9e3d27);
+}
+
+.legend-yellow {
+  border-color: rgba(184, 122, 34, 0.35);
+}
+.legend-yellow .legend-chip {
+  background: linear-gradient(90deg, #d4a045, #b87a22);
+}
+
+.legend-green {
+  border-color: rgba(47, 122, 61, 0.35);
+}
+.legend-green .legend-chip {
+  background: linear-gradient(90deg, #45b24a, #2f7a3d);
+}
+
+.legend-card h3 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+
+.legend-card p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.legend-footnote {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+@media (max-width: 920px) {
+  .legend-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ===== AI FEATURE COMPONENTS ===== */
@@ -447,7 +533,7 @@ body {
   padding: 20px;
   display: grid;
   gap: 14px;
-  transition: all 200ms ease;
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
 }
 
 .ai-feature-card:hover {
@@ -887,7 +973,7 @@ body {
   font-size: 0.95rem;
   cursor: pointer;
   border: none;
-  transition: all 140ms ease;
+  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease;
 }
 
 .hero h1,
@@ -961,6 +1047,7 @@ h1 {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .step-note {
@@ -1137,9 +1224,26 @@ input,
 select {
   border: 1px solid rgba(16, 36, 30, 0.2);
   border-radius: 11px;
-  min-height: 40px;
-  padding: 8px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
   background: rgba(255, 255, 255, 0.93);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(200, 79, 51, 0.18);
+}
+
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+.dropzone:focus-within {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(200, 79, 51, 0.35);
+  border-radius: inherit;
 }
 
 button {

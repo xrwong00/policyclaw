@@ -86,14 +86,14 @@ export default function HomePage() {
       <section className="landing-hero-section">
         <div className="hero-left">
           <p className="eyebrow">PolicyClaw</p>
-          <h1 className="hero-headline">Claw back what your insurer won&apos;t tell you.</h1>
+          <h1 className="hero-headline">Claw back what your insurer won&rsquo;t tell you.</h1>
           <p className="hero-subtitle">
             AI-powered clarity on your coverage. Spot overlaps. Forecast costs. Claim your rights. All backed by source citations.
           </p>
           
           <div className="hero-cta-group">
             <Link href="/analyze" className="cta-button cta-primary">
-              Start  Analysis
+              Start Analysis
             </Link>
           </div>
 
@@ -154,7 +154,21 @@ export default function HomePage() {
             <p>We analyze and explain. You decide. No automated recommendations imposed.</p>
           </div>
           <div className="trust-item">
-            <div className="trust-icon">🇲🇾</div>
+            <div className="trust-icon" aria-label="Malaysia">
+              <svg width="36" height="24" viewBox="0 0 28 14" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true" style={{ borderRadius: 3, display: 'block' }}>
+                <rect width="28" height="14" fill="#cc0001"/>
+                <rect y="1" width="28" height="1" fill="#fff"/>
+                <rect y="3" width="28" height="1" fill="#fff"/>
+                <rect y="5" width="28" height="1" fill="#fff"/>
+                <rect y="7" width="28" height="1" fill="#fff"/>
+                <rect y="9" width="28" height="1" fill="#fff"/>
+                <rect y="11" width="28" height="1" fill="#fff"/>
+                <rect y="13" width="28" height="1" fill="#fff"/>
+                <rect width="11" height="8" fill="#000066"/>
+                <circle cx="6.5" cy="4" r="2.5" fill="#ffcc00"/>
+                <circle cx="7.6" cy="4" r="2" fill="#000066"/>
+              </svg>
+            </div>
             <h3>Built for Malaysia</h3>
             <p>Designed with BNM guidance and Malaysian insurance realities in mind.</p>
           </div>

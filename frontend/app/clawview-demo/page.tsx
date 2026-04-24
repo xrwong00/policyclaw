@@ -53,16 +53,62 @@ export default function ClawViewDemoPage() {
 
   return (
     <main style={{ padding: "32px 24px", maxWidth: 1120, margin: "0 auto" }}>
-      <header style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: "1.6rem" }}>ClawView demo</h1>
-        <p style={{ margin: "4px 0 0", color: "var(--muted, #39574c)" }}>
-          Upload a policy PDF to see clause-level risk highlights. Click a
-          highlight for a plain-language explanation in EN or BM.
+      <header style={{ marginBottom: 24 }}>
+        <p className="eyebrow" style={{ margin: 0 }}>ClawView</p>
+        <h1
+          className="hero-headline"
+          style={{ fontSize: "clamp(1.8rem, 3vw, 2.6rem)", marginTop: 6 }}
+        >
+          See the risks hiding in your policy.
+        </h1>
+        <p style={{ margin: "10px 0 0", color: "var(--muted, #39574c)", maxWidth: "60ch" }}>
+          Upload a policy PDF to get clause-level risk highlights overlaid on
+          the page. Click any highlight for a plain-language explanation in EN
+          or BM.
         </p>
       </header>
 
       {!file && (
-        <PolicyUploader onFilesSelected={onFilesSelected} maxFiles={1} />
+        <>
+          <PolicyUploader onFilesSelected={onFilesSelected} maxFiles={1} />
+          <section className="clawview-legend" aria-label="Risk levels">
+            <p className="section-label" style={{ margin: "0 0 12px" }}>
+              What you&rsquo;ll see
+            </p>
+            <div className="legend-grid">
+              <article className="legend-card legend-red">
+                <span className="legend-chip" aria-hidden="true" />
+                <h3>Red — read this twice</h3>
+                <p>
+                  Hard exclusions, narrow definitions, or sharp repricing
+                  windows. The kind of clause that decides whether a claim
+                  pays out.
+                </p>
+              </article>
+              <article className="legend-card legend-yellow">
+                <span className="legend-chip" aria-hidden="true" />
+                <h3>Yellow — worth a question</h3>
+                <p>
+                  Ambiguous wording, waiting periods, or sub-limits that can
+                  surprise you later. Ask your agent before renewing.
+                </p>
+              </article>
+              <article className="legend-card legend-green">
+                <span className="legend-chip" aria-hidden="true" />
+                <h3>Green — solid coverage</h3>
+                <p>
+                  Standard terms, clear definitions, no obvious gotchas.
+                  These are the parts of the policy doing what you&rsquo;d
+                  expect.
+                </p>
+              </article>
+            </div>
+            <p className="legend-footnote">
+              Every highlight cites the exact page and clause from your PDF.
+              No invented sources.
+            </p>
+          </section>
+        </>
       )}
 
       {file && (
