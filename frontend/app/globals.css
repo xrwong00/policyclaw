@@ -961,6 +961,7 @@ h1 {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .step-note {
