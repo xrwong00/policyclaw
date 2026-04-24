@@ -21,12 +21,25 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Force mock mode before any app.* import touches GLM config.
-os.environ.pop("GLM_API_KEY", None)
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-BACKEND = REPO_ROOT / "backend"
-sys.path.insert(0, str(BACKEND))
+def _bootstrap_paths_and_mock_mode() -> None:
+    """Wipe GLM_API_KEY and extend sys.path before any app.* import.
+
+    Kept as a function (not top-level) so `import evals.run` from another
+    harness or test doesn't silently delete the caller's env. The script
+    entry point below calls this before anything else.
+    """
+    os.environ.pop("GLM_API_KEY", None)
+    repo_root = Path(__file__).resolve().parents[1]
+    backend = repo_root / "backend"
+    if str(backend) not in sys.path:
+        sys.path.insert(0, str(backend))
+    here = str(Path(__file__).parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+
+
+_bootstrap_paths_and_mock_mode()
 
 from app.services.ai_service import (  # noqa: E402
     analyze_health_score,
@@ -38,8 +51,6 @@ from app.services.simulation import (  # noqa: E402
     monte_carlo_affordability,
     simulate_life_events,
 )
-
-sys.path.insert(0, str(Path(__file__).parent))
 from fixtures.policy_inputs import FIXTURES  # noqa: E402
 
 CASES_PATH = Path(__file__).parent / "cases.json"

@@ -313,21 +313,35 @@ curl http://127.0.0.1:8000/v1/ai/status
 policyclaw/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                         # FastAPI routes
-│   │   ├── schemas.py                      # Pydantic contracts
+│   │   ├── main.py                         # FastAPI app: CORS + include_router only
+│   │   ├── api/                            # Route handlers split by concern
+│   │   │   ├── health.py                   # /health
+│   │   │   ├── analyze.py                  # /api/analyze + /api/extract-policy-profile
+│   │   │   ├── clawview.py                 # /v1/clawview (F4 / Wow 1)
+│   │   │   ├── futureclaw.py               # /v1/simulate/* (F6 / Wow 2)
+│   │   │   └── legacy.py                   # /v1/ai/*, /v1/policies/upload, /v1/verdict
+│   │   ├── core/
+│   │   │   └── glm_client.py               # Single GLM entry point (env, config, retry)
+│   │   ├── schemas/                        # Pydantic contracts split by domain
+│   │   │   ├── common.py                   # Citation, ConfidenceBand, PolicyType, ...
+│   │   │   ├── policy.py                   # PolicyInput, PolicyClause, ...
+│   │   │   ├── analyze.py                  # AnalyzeResponse, HealthScore, Verdict, ...
+│   │   │   ├── clawview.py                 # ClawView annotation shapes
+│   │   │   ├── futureclaw.py               # FutureClaw sim shapes
+│   │   │   └── legacy_ai.py                # /v1/ai/* F1/F2/F4/F7/F9/F11 shapes
 │   │   └── services/
-│   │       ├── ai_service.py               # GLM client + mock fallback for /v1/ai/*
+│   │       ├── ai_service.py               # GLM prompts + mock fallback for /v1/ai/*
 │   │       ├── analyze_service.py          # /api/analyze orchestration
 │   │       ├── profile_extraction_service.py
 │   │       ├── clawview_service.py         # F4 / Wow 1
 │   │       ├── futureclaw_narrative.py     # F6 / Wow 2 GLM narrative
 │   │       ├── simulation.py               # F6 Monte Carlo + legacy premium projection
 │   │       ├── pdf_parser.py               # PyMuPDF extraction
-│   │       ├── rag.py, verdict.py
-│   │   └── schemas.py                      # Pydantic contracts
+│   │       └── rag.py, verdict.py
 │   ├── data/bnm_corpus/                    # BNM inflation + LIAM/PIAM/MTA cost citations
 │   ├── tests/                              # pytest suite (run: pytest backend/tests/ -q)
-│   ├── .env.example                        # Template for .env (GLM_API_KEY lives here)
+│   └── .env.example                        # Template for .env (GLM_API_KEY lives here)
+├── evals/                                  # JSON-driven GLM pipeline eval harness
 └── frontend/
     └── app/
         ├── analyze/

@@ -26,7 +26,7 @@ Don't erode either of these while refactoring — they're the differentiator.
   - `clawview_service.py` — drives the ClawView (F4 / Wow 1) clause-risk overlay
   - `futureclaw_narrative.py` — single-GLM-call narrative batch for the FutureClaw (F6 / Wow 2) life-event simulator
   - `pdf_parser.py`, `rag.py`, `simulation.py`, `verdict.py`
-  - Data contracts in `backend/app/schemas.py`. Cost/inflation corpus in `backend/data/bnm_corpus/`.
+  - Data contracts in `backend/app/schemas/` (package split by domain: `common`, `policy`, `analyze`, `clawview`, `futureclaw`, `legacy_ai`). Cost/inflation corpus in `backend/data/bnm_corpus/`.
   - Unit tests in `backend/tests/` (run with `pytest backend/tests/ -q`).
 - `frontend/` — Next.js 15 App Router (React 19, TypeScript). Main user flow in `frontend/app/analyze/`.
 - `eval-harness/` — eval-driven-development scaffolding (see its `SKILL.md`).

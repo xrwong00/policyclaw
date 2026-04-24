@@ -180,7 +180,7 @@ sequenceDiagram
 | GET  | `/v1/ai/status` | Reports mock vs live GLM mode. |
 | misc | `/v1/ai/*`, `/v1/policies/upload`, `/v1/simulate/premium`, `/v1/verdict` | Legacy mock-first endpoints — stable scaffolding for future work. |
 
-### Core Pydantic contracts (`backend/app/schemas.py`)
+### Core Pydantic contracts (`backend/app/schemas/`)
 
 `PolicyInput`, `PolicyXRayResponse`, `HealthScore` (F5), `PolicyVerdict`, `ClawViewAnnotation` + `ClawViewResponse` (F4 / Wow 1), `LifeEventScenario` + `LifeEventSimulationResponse` (F6 / Wow 2), `AnalyzeResponse` (extended with `reasons`, `projected_10y_premium_myr`, `projected_10y_savings_myr`, `health_score`, `analysis_id`, `cached`, `needs_rider`), `Reason`, `Citation`, `AnalysisCitation`, `VerdictLabel`, `ConfidenceBand`, `RiskLevel`, `BoundingBox`, `PolicyType`.
 
