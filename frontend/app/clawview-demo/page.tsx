@@ -69,7 +69,46 @@ export default function ClawViewDemoPage() {
       </header>
 
       {!file && (
-        <PolicyUploader onFilesSelected={onFilesSelected} maxFiles={1} />
+        <>
+          <PolicyUploader onFilesSelected={onFilesSelected} maxFiles={1} />
+          <section className="clawview-legend" aria-label="Risk levels">
+            <p className="section-label" style={{ margin: "0 0 12px" }}>
+              What you&rsquo;ll see
+            </p>
+            <div className="legend-grid">
+              <article className="legend-card legend-red">
+                <span className="legend-chip" aria-hidden="true" />
+                <h3>Red — read this twice</h3>
+                <p>
+                  Hard exclusions, narrow definitions, or sharp repricing
+                  windows. The kind of clause that decides whether a claim
+                  pays out.
+                </p>
+              </article>
+              <article className="legend-card legend-yellow">
+                <span className="legend-chip" aria-hidden="true" />
+                <h3>Yellow — worth a question</h3>
+                <p>
+                  Ambiguous wording, waiting periods, or sub-limits that can
+                  surprise you later. Ask your agent before renewing.
+                </p>
+              </article>
+              <article className="legend-card legend-green">
+                <span className="legend-chip" aria-hidden="true" />
+                <h3>Green — solid coverage</h3>
+                <p>
+                  Standard terms, clear definitions, no obvious gotchas.
+                  These are the parts of the policy doing what you&rsquo;d
+                  expect.
+                </p>
+              </article>
+            </div>
+            <p className="legend-footnote">
+              Every highlight cites the exact page and clause from your PDF.
+              No invented sources.
+            </p>
+          </section>
+        </>
       )}
 
       {file && (
