@@ -34,19 +34,19 @@ export default function FutureClawSimulator({ policyId, profile }: FutureClawSim
   const [mode, setMode] = useState<SimMode>("affordability");
 
   return (
-    <section className="rounded-2xl border border-slate-800 bg-slate-950/60 p-6 text-slate-100">
-      <header className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-widest text-emerald-400">FutureClaw</p>
-          <h2 className="text-xl font-semibold">10-year simulator</h2>
-          <p className="mt-1 text-sm text-slate-400">
+    <section className="panel futureclaw">
+      <header className="futureclaw-header">
+        <div className="futureclaw-head-text">
+          <p className="futureclaw-eyebrow">FutureClaw</p>
+          <h2 className="futureclaw-title">10-year simulator</h2>
+          <p className="futureclaw-sub">
             See how your premium scales with inflation, and how your policy holds up in a life-changing event.
           </p>
         </div>
         <ModeToggle mode={mode} onChange={setMode} />
       </header>
 
-      <div className="mt-6">
+      <div>
         <AnimatePresence mode="wait">
           <motion.div
             key={mode}
@@ -74,24 +74,18 @@ interface ModeToggleProps {
 
 function ModeToggle({ mode, onChange }: ModeToggleProps) {
   return (
-    <div className="relative flex items-center gap-1 rounded-full border border-slate-700 bg-slate-900 p-1">
+    <div className="futureclaw-tabs" role="tablist" aria-label="Simulator mode">
       {TOGGLE_OPTIONS.map((opt) => {
         const active = mode === opt.id;
         return (
           <button
             key={opt.id}
             type="button"
+            role="tab"
+            aria-selected={active}
             onClick={() => onChange(opt.id)}
-            className="relative z-10 rounded-full px-4 py-1.5 text-sm font-medium transition-colors"
-            style={{ color: active ? "#020617" : "#cbd5e1" }}
+            className={`futureclaw-tab${active ? " active" : ""}`}
           >
-            {active && (
-              <motion.span
-                layoutId="futureclaw-toggle-pill"
-                className="absolute inset-0 -z-10 rounded-full bg-emerald-400"
-                transition={{ type: "spring", stiffness: 400, damping: 32 }}
-              />
-            )}
             {opt.label}
           </button>
         );
