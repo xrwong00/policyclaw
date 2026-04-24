@@ -86,7 +86,7 @@ Production flow (keep these working):
 - `POST /v1/simulate/affordability` — FutureClaw (F6 / Wow 2) Monte Carlo premium projection
 - `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with GLM narratives
 
-Legacy / scaffolded under `/v1/...` — `/v1/simulate/premium`, `/v1/verdict`, `/v1/policies/upload`, and the `/v1/ai/*` family (F1/F2/F4/F7/F9/F11) — some `/v1/ai/*` endpoints return mock data. Check `backend/app/main.py` before assuming an endpoint is live. CORS is configured in `main.py` for the local frontend origin.
+Legacy / scaffolded under `/v1/...` — `/v1/simulate/premium`, `/v1/verdict`, `/v1/policies/upload`, and the `/v1/ai/*` family (F1/F2/F4/F7/F9/F11) — some `/v1/ai/*` endpoints return mock data. Check `backend/app/api/legacy.py` before assuming an endpoint is live. CORS is configured in `backend/app/main.py` for the local frontend origin.
 
 ## Product principles to preserve
 

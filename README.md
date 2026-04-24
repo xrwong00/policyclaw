@@ -185,7 +185,7 @@ npm run dev
 - `POST /v1/policies/upload`
 - `POST /v1/simulate/premium`
 - `POST /v1/verdict`
-- `/v1/ai/*` family (policy-xray, overlap-map, bnm-rights-scanner, voice-interrogation, multilingual-explainer, citations, status) — several return mock data; check `backend/app/main.py` before depending on them
+- `/v1/ai/*` family (policy-xray, overlap-map, bnm-rights-scanner, voice-interrogation, multilingual-explainer, citations, status) — several return mock data; check `backend/app/api/legacy.py` before depending on them
 
 ## Makefile targets
 

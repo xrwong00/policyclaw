@@ -185,7 +185,7 @@ Each call uses `instructor` for typed output. Total latency target: **~15s**.
 
 ### 8.5 Current Endpoint Surface
 
-Production flow (keep working): `POST /api/extract-policy-profile`, `POST /api/analyze`. Legacy `/v1/ai/*` endpoints return mock data — check `backend/app/main.py` before assuming any `/v1/*` endpoint is live.
+Production flow (keep working): `POST /api/extract-policy-profile`, `POST /api/analyze`. Legacy `/v1/ai/*` endpoints return mock data — check `backend/app/api/legacy.py` before assuming any `/v1/*` endpoint is live.
 
 ### 8.6 Repository Structure
 
@@ -197,12 +197,28 @@ policyclaw/
 │   ├── requirements.txt
 │   ├── .env.example         # GLM_API_KEY, GLM_API_BASE, GLM_MODEL
 │   ├── app/
-│   │   ├── main.py          # FastAPI entry + CORS
-│   │   ├── schemas.py       # Pydantic API schemas
+│   │   ├── main.py                           # FastAPI entry: CORS + include_router
+│   │   ├── api/                              # Route handlers split by concern
+│   │   │   ├── health.py                     # /health
+│   │   │   ├── analyze.py                    # /api/analyze + /api/extract-policy-profile
+│   │   │   ├── clawview.py                   # /v1/clawview (F4 / Wow 1)
+│   │   │   ├── futureclaw.py                 # /v1/simulate/* (F6 / Wow 2)
+│   │   │   └── legacy.py                     # /v1/ai/*, /v1/policies/upload, /v1/verdict
+│   │   ├── core/
+│   │   │   └── glm_client.py                 # Single GLM entry point (env, config, retry)
+│   │   ├── schemas/                          # Pydantic contracts split by domain
+│   │   │   ├── common.py                     # Citation, ConfidenceBand, PolicyType
+│   │   │   ├── policy.py                     # PolicyInput, PolicyClause
+│   │   │   ├── analyze.py                    # AnalyzeResponse, HealthScore, Verdict
+│   │   │   ├── clawview.py                   # ClawView annotation shapes
+│   │   │   ├── futureclaw.py                 # FutureClaw sim shapes
+│   │   │   └── legacy_ai.py                  # /v1/ai/* F1/F2/F4/F7/F9/F11 shapes
 │   │   └── services/
 │   │       ├── analyze_service.py            # Orchestrates full analysis
 │   │       ├── profile_extraction_service.py # Auto-fills PolicyProfile
-│   │       ├── ai_service.py                 # GLM wrapper + mock fallback
+│   │       ├── ai_service.py                 # GLM prompts + mock fallback
+│   │       ├── clawview_service.py           # F4 / Wow 1
+│   │       ├── futureclaw_narrative.py       # F6 / Wow 2 narratives
 │   │       ├── pdf_parser.py
 │   │       ├── rag.py
 │   │       ├── simulation.py
