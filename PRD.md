@@ -128,7 +128,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 |---|---|
 | Frontend | Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui |
 | Backend | Python 3.12 + FastAPI + Pydantic v2 + SQLModel |
-| AI | Ilmu GLM (`ilmu-glm-5.1` on `api.ilmu.ai/v1`) + `instructor` for typed outputs |
+| AI | Ilmu GLM (`ilmu-glm-5.1` on `api.ilmu.ai/v1`) via streaming SSE (`post_glm_with_retry`) + Pydantic-validated typed outputs |
 | PDF | PyMuPDF (fitz) parsing, react-pdf-viewer display |
 | Charts | Recharts |
 | Simulation | numpy + scipy.stats |
@@ -164,7 +164,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 ┌────────────┐ ┌──────────────┐ ┌───────────────────┐
 │ Ingestion  │ │ GLM Pipeline │ │ Simulation Engine │
 │ PyMuPDF    │ │ Ilmu GLM-5.1 │ │ numpy + scipy     │
-│ + Extract  │ │ + instructor │ │ Monte Carlo       │
+│ + Extract  │ │ + streaming  │ │ Monte Carlo       │
 └──────┬─────┘ └───────┬──────┘ └─────────┬─────────┘
        │               │                  │
        ▼               ▼                  ▼
@@ -181,7 +181,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 3. **Score** — policy + user profile → 4 sub-scores (drives Health Score gauge).
 4. **Recommend** — all above + simulation results → verdict + 3 reasons + confidence + MYR impact + citations.
 
-Each call uses `instructor` for typed output. Total latency target: **~15s**.
+Each call streams through `post_glm_with_retry` (SSE concat; required — Ilmu's gateway closes non-streamed connections past ~60s) and its JSON content is validated against a Pydantic model. Total latency target: **~15s**.
 
 ### 8.5 Current Endpoint Surface
 
@@ -265,7 +265,7 @@ policyclaw/
 
 ### 9.2 Reliability
 
-- All GLM calls wrapped in `tenacity` retry: **3 attempts, exponential backoff, 30s per-call timeout.**
+- All GLM calls route through the streaming `post_glm_with_retry` helper: **3 attempts, exponential backoff on transport errors, 120s httpx read timeout per call.** Non-streamed calls would fail — Ilmu's gateway drops them past ~60s.
 - Graceful degradation: if **Annotate** fails, ClawView shows "limited annotation available" — rest of flow continues.
 - Persist AI outputs to Supabase before UI consumes (enables Realtime replay). MVP: in-memory cache.
 
@@ -293,7 +293,7 @@ policyclaw/
 
 ### Hour 2–6 — Backend Core
 - `/upload` + PyMuPDF text extraction with bounding boxes.
-- **GLM Call 1 (Extract)** working via `instructor` + Pydantic.
+- **GLM Call 1 (Extract)** working via streaming `post_glm_with_retry` + Pydantic validation.
 - Schemas defined. BNM corpus seeded (pgvector if Supabase on, else in-memory).
 
 ### Hour 6–10 — ClawView (Wow 1)

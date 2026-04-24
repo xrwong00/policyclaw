@@ -45,7 +45,7 @@ PolicyClaw is an AI insurance decision copilot for Malaysian policyholders. A us
 │ PyMuPDF  │ │ Ilmu GLM           │ │ numpy + scipy  │
 │ parser   │ │ ilmu-glm-5.1       │ │ Monte Carlo    │
 │ (chunks  │ │ streamed via httpx │ │ (simulation)   │
-│ + bbox)  │ │ + tenacity retry   │ │                │
+│ + bbox)  │ │ + retry/fallback   │ │                │
 └──────────┘ └────────────────────┘ └────────────────┘
                       │
                       ▼
@@ -158,7 +158,7 @@ sequenceDiagram
 ```
 
 **Reliability envelope (PRD §9.2).**
-- Each GLM call is wrapped in `tenacity` retry (3 attempts, exponential backoff, 30 s httpx timeout) or equivalent streamed POST with retry.
+- Each GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`: streaming SSE (required — Ilmu drops non-streamed connections past ~60s), 3 transport-error retries with exponential backoff, 120s httpx read timeout.
 - Every GLM call has a deterministic fallback (`_mock_*` / `_heuristic_*`). The pipeline never hard-fails on GLM issues.
 - `analyze_health_score` + `analyze_policy_xray` + `analyze_policy_verdict` are all demo-cache read-through: identical inputs return identical outputs even across fresh processes, satisfying F7 verdict consistency.
 - Temperature 0.1 on Recommend guarantees low entropy in production.
@@ -195,8 +195,8 @@ sequenceDiagram
 | Choice | Alternatives considered | Rationale |
 |---|---|---|
 | **Ilmu GLM `ilmu-glm-5.1` via `api.ilmu.ai/v1`** | Z.AI `bigmodel.cn`, OpenAI GPT-4, Anthropic Claude | Ilmu is an authorized Z.AI endpoint (confirmed with organizers). Non-Z.AI models disqualify the submission. |
-| **FastAPI + Pydantic v2** | Flask, Django, Node.js | Typed async endpoints, OpenAPI at `/docs`, Pydantic models reused as `instructor` typed outputs. |
-| **`instructor` + `tenacity`** | hand-rolled JSON parsing + retry loops | Typed LLM outputs with per-model validation and robust retry with exponential backoff. Already vendored. |
+| **FastAPI + Pydantic v2** | Flask, Django, Node.js | Typed async endpoints, OpenAPI at `/docs`, Pydantic models used directly for GLM response validation. |
+| **Streaming `post_glm_with_retry` + Pydantic `.model_validate`** | `instructor`-wrapped non-streaming client, hand-rolled JSON parsing | Ilmu's gateway closes non-streamed connections past ~60s, so we stream SSE chunks, aggregate, and validate with Pydantic. 3-attempt transport retry with exponential backoff under 120s httpx read timeout. `instructor` and `tenacity` remain pinned in `requirements.txt` pending a doc-level call about whether to drop them or re-adopt once typed streaming is mature. |
 | **PyMuPDF (fitz)** | pypdf, pdfplumber | Returns per-clause bounding boxes required by ClawView's SVG highlight overlay. pypdf gives text but not reliable bbox coords. |
 | **numpy / scipy for Monte Carlo** | GLM in the slider loop | Keeps slider drag at 60 FPS. GLM only runs for narrative after the simulation completes — PRD F6 requirement. |
 | **Recharts** | shadcn/ui Chart, D3 | Simpler declarative React API; the FutureClaw line + bar charts don't need D3's flexibility. |
