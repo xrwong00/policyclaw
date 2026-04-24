@@ -446,7 +446,13 @@ async def _call_glm_annotate(
         "messages": messages,
     }
 
-    content = await post_glm_with_retry(url=url, headers=headers, payload=payload)
+    content = await post_glm_with_retry(
+        url=url,
+        headers=headers,
+        payload=payload,
+        attempts=2,
+        read_timeout_s=30.0,
+    )
     parsed = extract_json_from_content(content)
     batch = _AnnotateBatch.model_validate(parsed)
 
