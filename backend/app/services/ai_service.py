@@ -27,6 +27,7 @@ from app.schemas import (
     BNMRightsScannerResponse,
     Citation,
     ConfidenceBand,
+    HealthScore,
     MultilingualExplanation,
     OverlapMapResponse,
     PolicyClause,
@@ -40,6 +41,7 @@ from app.schemas import (
     CitationVaultResponse,
     CitationVaultEntry,
 )
+from app.services import demo_cache
 from app.services.verdict import generate_verdict
 
 
@@ -106,8 +108,18 @@ def _extract_json_from_content(content: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
-async def _call_glm_policy_xray(policy_input: PolicyInput, policy_id: str) -> PolicyXRayResponse:
-    """Call GLM API for F1 Policy X-Ray and return schema-validated response."""
+async def _call_glm_policy_xray(
+    policy_input: PolicyInput,
+    policy_id: str,
+    context: str | None = None,
+) -> PolicyXRayResponse:
+    """Call GLM API for F1 Policy X-Ray and return schema-validated response.
+
+    When `context` (retrieved PDF text chunks) is provided, the prompt instructs
+    the model to paraphrase clauses drawn from the real document rather than
+    inventing plausible-sounding Malaysian insurance clauses. This grounds the
+    downstream `citations[]` array in the uploaded PDF — PRD P2 compliance.
+    """
     if not config.api_key:
         raise RuntimeError("GLM_API_KEY is missing")
 
@@ -156,29 +168,47 @@ async def _call_glm_policy_xray(policy_input: PolicyInput, policy_id: str) -> Po
         "expected_income_growth_pct": policy_input.expected_income_growth_pct,
     }
 
+    if context:
+        user_content = (
+            "Extract a PolicyXRayResponse JSON for the policy BELOW. "
+            "Every `key_clauses[]` entry MUST paraphrase text that appears in the "
+            "Context section; do NOT invent clauses that are not present in the "
+            "Context. `source_page` must be the actual PDF page number the clause "
+            "is drawn from (see the `page=N` markers in each context block). "
+            "`original_text` is a short verbatim quote from the Context. "
+            "Output must follow this schema shape exactly: "
+            f"{json.dumps(schema_hint, ensure_ascii=True)}\n"
+            f"Input policy: {json.dumps(prompt, ensure_ascii=True)}\n\n"
+            f"Context (uploaded PDF chunks):\n{context}"
+        )
+        system_content = (
+            "You are PolicyClaw's Policy X-Ray analyst for Malaysia. "
+            "Return strict JSON only, no markdown, no prose outside JSON. "
+            "Ground every clause in the supplied Context. If the Context is thin, "
+            "return fewer clauses rather than inventing ones. "
+            "Keep clause explanations concise and factual."
+        )
+    else:
+        user_content = (
+            "Generate a PolicyXRayResponse JSON for this policy input. "
+            "Use realistic clauses for Malaysian insurance contexts. "
+            "Output must follow this schema shape exactly: "
+            f"{json.dumps(schema_hint, ensure_ascii=True)}\n"
+            f"Input policy: {json.dumps(prompt, ensure_ascii=True)}"
+        )
+        system_content = (
+            "You are PolicyClaw's Policy X-Ray analyst for Malaysia. "
+            "Return strict JSON only, no markdown, no prose outside JSON. "
+            "Keep clause explanations concise and factual."
+        )
+
     payload = {
         "model": config.model,
         "temperature": 0.2,
         "response_format": {"type": "json_object"},
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are PolicyClaw's Policy X-Ray analyst for Malaysia. "
-                    "Return strict JSON only, no markdown, no prose outside JSON. "
-                    "Keep clause explanations concise and factual."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "Generate a PolicyXRayResponse JSON for this policy input. "
-                    "Use realistic clauses for Malaysian insurance contexts. "
-                    "Output must follow this schema shape exactly: "
-                    f"{json.dumps(schema_hint, ensure_ascii=True)}\n"
-                    f"Input policy: {json.dumps(prompt, ensure_ascii=True)}"
-                ),
-            },
+            {"role": "system", "content": system_content},
+            {"role": "user", "content": user_content},
         ],
     }
 
@@ -216,11 +246,35 @@ async def _call_glm_policy_xray(policy_input: PolicyInput, policy_id: str) -> Po
 
 
 async def _call_glm_policy_verdict(
-    policy: PolicyInput, policy_id: str, realistic_10y_cost_myr: float
+    policy: PolicyInput,
+    policy_id: str,
+    realistic_10y_cost_myr: float,
+    xray: PolicyXRayResponse | None = None,
+    health: HealthScore | None = None,
 ) -> PolicyVerdict:
-    """Call GLM API for F5 Keep-Switch-Dump verdict and return validated response."""
+    """Call GLM API for F5 Keep-Switch-Dump verdict and return validated response.
+
+    When `xray` and `health` are provided, their context is passed to the prompt so
+    the recommendation is grounded in the earlier pipeline stages. Temperature 0.1
+    gives deterministic output on identical inputs (F7 acceptance).
+    """
     if not config.api_key:
         raise RuntimeError("GLM_API_KEY is missing")
+
+    cache_key = demo_cache.make_key(
+        "recommend",
+        policy_id,
+        policy.model_dump(mode="json"),
+        round(realistic_10y_cost_myr, 2),
+        xray.model_dump(mode="json") if xray else None,
+        health.model_dump(mode="json") if health else None,
+    )
+    cached = demo_cache.get(cache_key)
+    if cached is not None:
+        try:
+            return PolicyVerdict.model_validate(cached)
+        except Exception:
+            pass  # Fall through and re-call GLM if cache payload is stale.
 
     url = f"{config.api_base.rstrip('/')}/chat/completions"
     headers = {
@@ -231,9 +285,10 @@ async def _call_glm_policy_verdict(
     schema_hint = {
         "verdict": "keep|downgrade|switch|dump",
         "confidence_score": "number 0-100",
+        "needs_rider": "boolean (true only when verdict==keep AND a specific rider gap is identified)",
         "reasons": [
             {
-                "title": "string",
+                "title": "string (prefix with 'Add rider:' when the primary action is adding a rider)",
                 "detail": "string",
                 "citation": {
                     "source": "string",
@@ -258,16 +313,42 @@ async def _call_glm_policy_verdict(
         "realistic_10y_cost_myr": realistic_10y_cost_myr,
     }
 
+    if xray is not None:
+        prompt["policy_xray"] = {
+            "gotcha_count": xray.gotcha_count,
+            "confidence_score": xray.confidence_score,
+            "key_clauses": [
+                {
+                    "title": c.title,
+                    "plain_language_en": c.plain_language_en,
+                    "gotcha_flag": c.gotcha_flag,
+                    "source_page": c.source_page,
+                }
+                for c in xray.key_clauses[:6]
+            ],
+        }
+    if health is not None:
+        prompt["health_score"] = {
+            "overall": health.overall,
+            "coverage_adequacy": health.coverage_adequacy,
+            "affordability": health.affordability,
+            "premium_stability": health.premium_stability,
+            "clarity_trust": health.clarity_trust,
+            "narrative_en": health.narrative_en,
+        }
+
     payload = {
         "model": config.model,
-        "temperature": 0.2,
+        "temperature": 0.1,
         "response_format": {"type": "json_object"},
         "messages": [
             {
                 "role": "system",
                 "content": (
                     "You are PolicyClaw's decision strategist for Malaysian insurance. "
-                    "Return strict JSON only. Give pragmatic decision support, not legal advice."
+                    "Return strict JSON only. Give pragmatic decision support, not legal advice. "
+                    "Ground every reason in the supplied policy_xray key_clauses or health_score narrative. "
+                    "Set needs_rider=true ONLY when verdict=keep AND a specific rider gap is identified."
                 ),
             },
             {
@@ -300,6 +381,30 @@ async def _call_glm_policy_verdict(
     for item in reasons_data[:5]:
         cleaned_reasons.append(Reason.model_validate(item))
 
+    # Carry the needs_rider hint through the first reason's title since PolicyVerdict
+    # schema is shared with other worktrees and we don't want to change its shape.
+    # Detection uses the exact "add rider:" prefix (including colon) — matches the
+    # format the writer below produces and what _needs_rider_flag looks for.
+    # Strict boolean parsing — a JSON string like "false" is truthy in Python,
+    # so coerce via known-good representations only.
+    raw_needs_rider = parsed.get("needs_rider", False)
+    if isinstance(raw_needs_rider, bool):
+        needs_rider_raw = raw_needs_rider
+    elif isinstance(raw_needs_rider, (int, float)):
+        needs_rider_raw = bool(raw_needs_rider)
+    elif isinstance(raw_needs_rider, str):
+        needs_rider_raw = raw_needs_rider.strip().lower() in {"true", "1", "yes"}
+    else:
+        needs_rider_raw = False
+    needs_rider = needs_rider_raw and verdict_value == "keep"
+    if needs_rider and cleaned_reasons and not cleaned_reasons[0].title.lower().startswith("add rider:"):
+        first = cleaned_reasons[0]
+        cleaned_reasons[0] = Reason(
+            title=f"Add rider: {first.title}",
+            detail=first.detail,
+            citation=first.citation,
+        )
+
     projected_savings = 0.0
     if verdict_value == "keep":
         projected_savings = realistic_10y_cost_myr * 0.05
@@ -310,7 +415,7 @@ async def _call_glm_policy_verdict(
     elif verdict_value == "dump":
         projected_savings = realistic_10y_cost_myr * 0.22
 
-    return PolicyVerdict(
+    result = PolicyVerdict(
         policy_id=policy_id,
         verdict=VerdictLabel(verdict_value),
         confidence_score=confidence_score,
@@ -319,6 +424,11 @@ async def _call_glm_policy_verdict(
         projected_10y_savings_myr=round(float(projected_savings), 2),
         reasons=cleaned_reasons,
     )
+    try:
+        demo_cache.put(cache_key, result.model_dump(mode="json"))
+    except Exception:
+        pass  # Cache write is best effort; never discard a successful GLM result.
+    return result
 
 
 def _heuristic_policy_verdict(policy: PolicyInput, realistic_10y_cost_myr: float) -> PolicyVerdict:
@@ -638,13 +748,22 @@ def _mock_citation_vault(analysis_id: str, policy_count: int) -> CitationVaultRe
 # ===== PUBLIC API =====
 
 
-async def analyze_policy_xray(policy_input: PolicyInput, policy_id: str) -> PolicyXRayResponse:
+async def analyze_policy_xray(
+    policy_input: PolicyInput,
+    policy_id: str,
+    context: str | None = None,
+    file_digest: str | None = None,
+) -> PolicyXRayResponse:
     """
     F1: Policy X-Ray — Extract and translate policy clauses.
 
     Args:
         policy_input: Structured policy input
         policy_id: Unique policy identifier
+        context: Optional concatenated PDF text chunks for GLM grounding
+        file_digest: Optional SHA-256 over raw uploaded PDF bytes — included in
+            the cache key so two different PDFs with identical profile fields
+            don't share cached analysis output.
 
     Returns:
         PolicyXRayResponse with extracted fields and plain-language clauses
@@ -652,13 +771,230 @@ async def analyze_policy_xray(policy_input: PolicyInput, policy_id: str) -> Poli
     if config.is_mock_mode:
         return _mock_policy_xray(policy_input, policy_id)
 
+    cache_key = demo_cache.make_key(
+        "extract",
+        policy_id,
+        policy_input.model_dump(mode="json"),
+        file_digest or "",
+        bool(context),
+    )
+    cached = demo_cache.get(cache_key)
+    if cached is not None:
+        try:
+            return PolicyXRayResponse.model_validate(cached)
+        except Exception:
+            pass  # Cached payload stale — re-call GLM.
+
     try:
-        return await _call_glm_policy_xray(policy_input, policy_id)
+        result = await _call_glm_policy_xray(policy_input, policy_id, context=context)
+        # Cache write is best-effort — never let a disk-full or permission error
+        # discard a successful GLM response.
+        try:
+            demo_cache.put(cache_key, result.model_dump(mode="json"))
+        except Exception:
+            pass
+        return result
     except Exception:
         fallback = _mock_policy_xray(policy_input, policy_id)
         fallback.confidence_score = 45.0
         fallback.confidence_band = ConfidenceBand.LOW
         fallback.extracted_fields["llm_status"] = "fallback_mock_due_to_glm_error"
+        return fallback
+
+
+# ===== F5 HEALTH SCORE (GLM Call 3 — Score) =====
+
+_HEALTH_SCORE_SCHEMA_HINT = {
+    "coverage_adequacy": "integer 0-25",
+    "affordability": "integer 0-25",
+    "premium_stability": "integer 0-25",
+    "clarity_trust": "integer 0-25",
+    "narrative_en": "string 1-500 chars",
+    "narrative_bm": "string 1-500 chars",
+    "confidence_score": "number 0-100",
+}
+
+
+async def _call_glm_health_score(
+    policy_input: PolicyInput, xray: PolicyXRayResponse
+) -> HealthScore:
+    """Call GLM API for F5 Health Score and return validated HealthScore."""
+    if not config.api_key:
+        raise RuntimeError("GLM_API_KEY is missing")
+
+    url = f"{config.api_base.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Content-Type": "application/json",
+    }
+
+    prompt = {
+        "policy": policy_input.model_dump(mode="json"),
+        "xray_summary": {
+            "gotcha_count": xray.gotcha_count,
+            "confidence_score": xray.confidence_score,
+            "clauses": [
+                {
+                    "title": c.title,
+                    "plain_language_en": c.plain_language_en,
+                    "gotcha_flag": c.gotcha_flag,
+                }
+                for c in xray.key_clauses[:8]
+            ],
+        },
+    }
+
+    payload = {
+        "model": config.model,
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are PolicyClaw's Health Score analyst. Return strict JSON only. "
+                    "Produce four 0-25 sub-scores: coverage_adequacy, affordability, "
+                    "premium_stability, clarity_trust. Calibrate strictly — the overall "
+                    "(sum of sub-scores) must land between 30 and 85 for real Malaysian "
+                    "policies. Do not output 95+ unless every single sub-score clearly "
+                    "deserves a maximum. Provide narrative_en and narrative_bm under 500 chars each."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Schema: {json.dumps(_HEALTH_SCORE_SCHEMA_HINT, ensure_ascii=True)}\n\n"
+                    f"Input: {json.dumps(prompt, ensure_ascii=True, default=str)}"
+                ),
+            },
+        ],
+    }
+
+    content = await _post_glm_with_retry(url=url, headers=headers, payload=payload)
+    parsed = _extract_json_from_content(content)
+
+    def _clip(value, lo, hi):
+        try:
+            v = int(round(float(value)))
+        except (TypeError, ValueError):
+            v = lo
+        return max(lo, min(hi, v))
+
+    coverage = _clip(parsed.get("coverage_adequacy"), 0, 25)
+    afford = _clip(parsed.get("affordability"), 0, 25)
+    stability = _clip(parsed.get("premium_stability"), 0, 25)
+    clarity = _clip(parsed.get("clarity_trust"), 0, 25)
+    overall = coverage + afford + stability + clarity
+
+    confidence = float(parsed.get("confidence_score", 70.0))
+    confidence = max(0.0, min(100.0, confidence))
+
+    return HealthScore(
+        overall=overall,
+        coverage_adequacy=coverage,
+        affordability=afford,
+        premium_stability=stability,
+        clarity_trust=clarity,
+        narrative_en=str(parsed.get("narrative_en") or "No narrative returned.")[:500],
+        narrative_bm=str(parsed.get("narrative_bm") or "Tiada naratif dikembalikan.")[:500],
+        confidence_score=confidence,
+        confidence_band=_confidence_band_from_score(confidence),
+    )
+
+
+def _heuristic_health_score(
+    policy_input: PolicyInput, xray: PolicyXRayResponse | None = None
+) -> HealthScore:
+    """Deterministic fallback targeting a 45-65 overall range so the demo never shows 95."""
+    annual_income = policy_input.projected_income_monthly_myr * 12.0
+    burden = policy_input.annual_premium_myr / max(annual_income, 1.0)
+    coverage_ratio = policy_input.coverage_limit_myr / max(annual_income, 1.0)
+
+    if burden < 0.04:
+        affordability = 22
+    elif burden < 0.07:
+        affordability = 18
+    elif burden < 0.10:
+        affordability = 14
+    elif burden < 0.15:
+        affordability = 10
+    else:
+        affordability = 6
+
+    if coverage_ratio >= 20:
+        coverage_adequacy = 22
+    elif coverage_ratio >= 10:
+        coverage_adequacy = 17
+    elif coverage_ratio >= 5:
+        coverage_adequacy = 13
+    else:
+        coverage_adequacy = 8
+
+    premium_stability = 14
+    # Let clarity dip when the xray flagged many gotchas.
+    gotchas = xray.gotcha_count if xray else 0
+    clarity_trust = max(6, 18 - gotchas * 3)
+
+    overall = affordability + coverage_adequacy + premium_stability + clarity_trust
+    return HealthScore(
+        overall=overall,
+        coverage_adequacy=coverage_adequacy,
+        affordability=affordability,
+        premium_stability=premium_stability,
+        clarity_trust=clarity_trust,
+        narrative_en=(
+            "Heuristic score: premium burden and coverage ratio drive the result. "
+            "GLM narrative unavailable; review with an advisor if the gauge is below 50."
+        ),
+        narrative_bm=(
+            "Skor heuristik: bebanan premium dan nisbah perlindungan mendorong keputusan. "
+            "Naratif GLM tidak tersedia; rujuk penasihat jika tolok menunjukkan di bawah 50."
+        ),
+        confidence_score=55.0,
+        confidence_band=ConfidenceBand.LOW,
+    )
+
+
+async def analyze_health_score(
+    policy_input: PolicyInput, xray: PolicyXRayResponse
+) -> HealthScore:
+    """F5 Health Score synthesis with GLM primary path and heuristic fallback."""
+    if config.is_mock_mode:
+        return _heuristic_health_score(policy_input, xray)
+
+    cache_key = demo_cache.make_key(
+        "score",
+        policy_input.model_dump(mode="json"),
+        xray.model_dump(mode="json"),
+    )
+    cached = demo_cache.get(cache_key)
+    if cached is not None:
+        try:
+            return HealthScore.model_validate(cached)
+        except Exception:
+            pass
+
+    try:
+        result = await _call_glm_health_score(policy_input, xray)
+        try:
+            demo_cache.put(cache_key, result.model_dump(mode="json"))
+        except Exception:
+            pass
+        return result
+    except Exception:
+        fallback = _heuristic_health_score(policy_input, xray)
+        # Nudge confidence even lower so the UI flags the fallback.
+        fallback = HealthScore(
+            overall=fallback.overall,
+            coverage_adequacy=fallback.coverage_adequacy,
+            affordability=fallback.affordability,
+            premium_stability=fallback.premium_stability,
+            clarity_trust=fallback.clarity_trust,
+            narrative_en=fallback.narrative_en,
+            narrative_bm=fallback.narrative_bm,
+            confidence_score=45.0,
+            confidence_band=ConfidenceBand.LOW,
+        )
         return fallback
 
 
@@ -684,15 +1020,24 @@ async def analyze_overlap_map(
 
 
 async def analyze_policy_verdict(
-    policy: PolicyInput, realistic_10y_cost_myr: float
+    policy: PolicyInput,
+    realistic_10y_cost_myr: float,
+    xray: PolicyXRayResponse | None = None,
+    health: HealthScore | None = None,
 ) -> PolicyVerdict:
-    """F5 verdict synthesis with GLM primary path and deterministic fallback."""
+    """F5 verdict synthesis with GLM primary path and deterministic fallback.
+
+    Optional `xray` and `health` context are passed into the GLM prompt so the
+    recommendation is grounded in the Extract and Score stage outputs.
+    """
     if config.is_mock_mode:
         return _heuristic_policy_verdict(policy, realistic_10y_cost_myr)
 
     policy_id = f"{policy.insurer}-{policy.plan_name}".lower().replace(" ", "-")
     try:
-        return await _call_glm_policy_verdict(policy, policy_id, realistic_10y_cost_myr)
+        return await _call_glm_policy_verdict(
+            policy, policy_id, realistic_10y_cost_myr, xray=xray, health=health
+        )
     except Exception:
         fallback = _heuristic_policy_verdict(policy, realistic_10y_cost_myr)
         fallback.confidence_score = min(fallback.confidence_score, 55.0)
