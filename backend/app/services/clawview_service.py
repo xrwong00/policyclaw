@@ -19,8 +19,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
-from pathlib import Path
 from typing import Iterable
 
 from pydantic import BaseModel, Field
@@ -32,6 +30,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.core.glm_client import AIServiceConfig
 from app.schemas import (
     BoundingBox,
     ClawViewAnnotation,
@@ -44,37 +43,9 @@ from app.services.pdf_parser import ClauseWithBBox, extract_clauses_with_bboxes
 logger = logging.getLogger(__name__)
 
 
-def _load_local_env() -> None:
-    env_path = Path(__file__).resolve().parents[2] / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
-
-_load_local_env()
-
-
-class ClawViewConfig:
-    def __init__(self) -> None:
-        self.api_key = os.getenv("GLM_API_KEY", "").strip()
-        self.api_base = os.getenv("GLM_API_BASE", "https://api.ilmu.ai/v1").strip()
-        self.model = os.getenv("GLM_MODEL", "ilmu-glm-5.1").strip() or "ilmu-glm-5.1"
-        self.is_mock_mode = not self.api_key
-
-    @property
-    def enabled(self) -> bool:
-        return not self.is_mock_mode
-
-
+# `ClawViewConfig` is an alias of the shared `AIServiceConfig` — same env vars,
+# same resolution rules. Keeping the name so any external reference remains valid.
+ClawViewConfig = AIServiceConfig
 config = ClawViewConfig()
 
 
