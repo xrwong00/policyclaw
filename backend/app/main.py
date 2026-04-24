@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.schemas import (
     APIHealth,
+    ClawViewResponse,
     PolicyInput,
     PolicyVerdict,
     PremiumSimulationResponse,
@@ -35,6 +36,7 @@ from app.services.ai_service import (
     config as ai_config,
 )
 from app.services.analyze_service import run_ai_analysis
+from app.services.clawview_service import annotate_policy as clawview_annotate_policy
 from app.services.profile_extraction_service import extract_policy_profiles
 
 app = FastAPI(title="PolicyClaw Backend", version="0.1.0")
@@ -144,6 +146,20 @@ async def api_extract_policy_profile(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@app.post("/v1/clawview", response_model=ClawViewResponse)
+async def api_clawview(file: UploadFile = File(...)) -> ClawViewResponse:
+    """F4 ClawView: clause-level risk highlights overlaid on the policy PDF."""
+    filename = Path(file.filename or "policy.pdf").name
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
+
+    payload = await file.read()
+    if not payload:
+        raise HTTPException(status_code=400, detail="Uploaded PDF was empty")
+
+    return await clawview_annotate_policy(payload, filename, policy_id=str(uuid4()))
 
 
 @app.post("/v1/policies/upload", response_model=UploadPolicyResponse)
