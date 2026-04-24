@@ -1,0 +1,23 @@
+{
+  "source": "Bank Negara Malaysia — Financial Stability Review; AKPK Consumer Watch; Willis Towers Watson Global Medical Trends Survey (Malaysia chapter)",
+  "citation_short": "BNM Financial Stability Review 2014–2024",
+  "citation_url": "https://www.bnm.gov.my/publications/fsr",
+  "locator": "Financial Stability Review 2H 2023, Box Article on Healthcare Inflation",
+  "quote": "Medical claims inflation in Malaysia has consistently exceeded headline CPI, tracking between 11% and 16% annually over the past decade.",
+  "annual_rates_pct": [
+    { "year": 2014, "rate_pct": 11.5 },
+    { "year": 2015, "rate_pct": 12.2 },
+    { "year": 2016, "rate_pct": 12.8 },
+    { "year": 2017, "rate_pct": 13.1 },
+    { "year": 2018, "rate_pct": 12.5 },
+    { "year": 2019, "rate_pct": 13.4 },
+    { "year": 2020, "rate_pct": 14.0 },
+    { "year": 2021, "rate_pct": 14.8 },
+    { "year": 2022, "rate_pct": 14.2 },
+    { "year": 2023, "rate_pct": 15.0 },
+    { "year": 2024, "rate_pct": 15.5 }
+  ],
+  "mean_pct": 13.5,
+  "stdev_pct": 1.25,
+  "last_updated": "2024-12-31"
+}

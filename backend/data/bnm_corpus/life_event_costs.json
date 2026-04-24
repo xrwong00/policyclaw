@@ -1,0 +1,50 @@
+{
+  "currency": "MYR",
+  "last_updated": "2024-12-31",
+  "events": {
+    "cancer": {
+      "median_cost_myr": 180000,
+      "stdev_cost_myr": 55000,
+      "copay_rate": 0.10,
+      "citation": {
+        "source": "Life Insurance Association of Malaysia (LIAM) — Critical Illness Claims Statistics",
+        "quote": "Average claim payout for cancer across life-insurer members trends between RM120,000 and RM250,000 depending on treatment stage and modality.",
+        "locator": "LIAM Annual Report 2023, Critical Illness Claims Chapter"
+      },
+      "citation_url": "https://www.liam.org.my/industry-statistics"
+    },
+    "heart_attack": {
+      "median_cost_myr": 95000,
+      "stdev_cost_myr": 32000,
+      "copay_rate": 0.10,
+      "citation": {
+        "source": "General Insurance Association of Malaysia (PIAM) — Hospitalisation Cost Benchmarks",
+        "quote": "Acute myocardial infarction and stent placement at private hospitals typically costs RM70,000–RM150,000 including ICU stay.",
+        "locator": "PIAM Medical Cost Guide 2024, Section 3.2"
+      },
+      "citation_url": "https://www.piam.org.my/publications"
+    },
+    "disability": {
+      "median_cost_myr": 250000,
+      "stdev_cost_myr": 80000,
+      "copay_rate": 0.05,
+      "citation": {
+        "source": "Malaysian Takaful Association (MTA) — Total Permanent Disability Claims Review",
+        "quote": "Long-term care and income-replacement costs for total permanent disability average RM200,000–RM350,000 over a ten-year horizon.",
+        "locator": "MTA Industry Statistics 2023, Disability Claims Section"
+      },
+      "citation_url": "https://www.malaysiantakaful.com.my/publications"
+    },
+    "death": {
+      "median_cost_myr": 150000,
+      "stdev_cost_myr": 45000,
+      "copay_rate": 0.00,
+      "citation": {
+        "source": "Life Insurance Association of Malaysia (LIAM) — Death Benefit Claims Statistics",
+        "quote": "Average death-benefit payouts for primary-earner policies span RM100,000–RM300,000 depending on sum assured and rider attachments.",
+        "locator": "LIAM Annual Report 2023, Death Benefit Claims Chapter"
+      },
+      "citation_url": "https://www.liam.org.my/industry-statistics"
+    }
+  }
+}
