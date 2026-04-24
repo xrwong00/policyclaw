@@ -318,6 +318,7 @@ def _mock_clawview(
     """
     annotations: list[ClawViewAnnotation] = []
     seen_categories: set[str] = set()
+    used_ids: set[str] = set()
 
     # Pass 1: real clause matches for each risk category.
     for clause in clauses:
@@ -333,22 +334,28 @@ def _mock_clawview(
                 continue
         annotations.append(_clause_to_annotation(clause, category))
         seen_categories.add(category["key"])
+        used_ids.add(clause.clause_id)
 
     # Pass 2: synthesize missing risk categories using the longest available clause
-    # (long clauses tend to be exclusion/schedule text — good anchor points).
+    # that hasn't already been annotated (long clauses tend to be exclusion/schedule
+    # text — good anchor points). Skipping already-used clauses keeps clause_ids
+    # unique so the frontend overlay can key on them safely.
     missing = [c for c in RISK_CATEGORIES if c["key"] not in seen_categories]
     if missing:
-        sorted_clauses = sorted(clauses, key=lambda c: len(c.text), reverse=True)
+        fresh_clauses = sorted(
+            (c for c in clauses if c.clause_id not in used_ids),
+            key=lambda c: len(c.text),
+            reverse=True,
+        )
+        fresh_iter = iter(fresh_clauses)
         for idx, category in enumerate(missing):
-            anchor = sorted_clauses[idx] if idx < len(sorted_clauses) else None
-            if anchor is None:
-                anchor = _synthetic_anchor(idx)
+            anchor = next(fresh_iter, None) or _synthetic_anchor(idx)
             annotations.append(_clause_to_annotation(anchor, category))
+            used_ids.add(anchor.clause_id)
 
     # Pass 3: pad with benign (green) clauses until we hit ≥8 highlights.
     pad_target = 8
     if len(annotations) < pad_target:
-        used_ids = {ann.clause_id for ann in annotations}
         for clause in clauses:
             if len(annotations) >= pad_target:
                 break
@@ -459,7 +466,8 @@ async def _call_glm_annotate(
     messages = _build_glm_prompt(selected)
 
     client = instructor.from_openai(
-        AsyncOpenAI(api_key=config.api_key, base_url=config.api_base)
+        AsyncOpenAI(api_key=config.api_key, base_url=config.api_base),
+        mode=instructor.Mode.JSON,
     )
 
     async def _once() -> _AnnotateBatch:
@@ -500,10 +508,14 @@ def _merge_drafts_with_bboxes(
     clause_index = {clause.clause_id: clause for clause in clauses}
 
     annotations: list[ClawViewAnnotation] = []
+    seen_clause_ids: set[str] = set()
     for draft in drafts:
         clause = clause_index.get(draft.clause_id)
         if clause is None:
             continue
+        if draft.clause_id in seen_clause_ids:
+            continue
+        seen_clause_ids.add(draft.clause_id)
         annotations.append(
             ClawViewAnnotation(
                 clause_id=draft.clause_id,
