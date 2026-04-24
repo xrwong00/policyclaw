@@ -322,7 +322,7 @@ policyclaw/
 
 ### Hour 21–23 — Testing & Docs
 - 3–4 pytest units (extraction, simulation, recommendation).
-- README screenshots; ARCHITECTURE.md (1 page).
+- README screenshots; README.md "Architecture" section (supersedes the former standalone ARCHITECTURE.md).
 
 ### Hour 23–24 — Demo Prep
 - Run demo flow 3× for muscle memory.
