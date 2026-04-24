@@ -93,7 +93,7 @@ export default function HomePage() {
           
           <div className="hero-cta-group">
             <Link href="/analyze" className="cta-button cta-primary">
-              Start  Analysis
+              Start Analysis
             </Link>
           </div>
 
