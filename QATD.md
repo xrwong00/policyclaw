@@ -33,7 +33,7 @@ Likelihood × Impact, scale 1 (low) – 5 (critical). Score = L × I.
 
 | ID | Risk | L | I | Score | Mitigation | Owner |
 |---|---|---|---|---|---|---|
-| R1 | GLM API failure or rate-limit mid-demo | 3 | 5 | 15 | `tenacity` 3-attempt retry with exponential backoff. Demo cache serves last successful payload. Recommend stage falls back to deterministic `generate_verdict`; Extract stage falls back to `_mock_policy_xray`; Score stage falls back to `_heuristic_health_score`. | shell |
+| R1 | GLM API failure or rate-limit mid-demo | 3 | 5 | 15 | Streaming `post_glm_with_retry` — 3-attempt transport retry with exponential backoff, 120s httpx read timeout. Demo cache serves last successful payload. Recommend stage falls back to deterministic `generate_verdict`; Extract stage falls back to `_mock_policy_xray`; Score stage falls back to `_heuristic_health_score`; ClawView/FutureClaw fall back to heuristic/mock narratives. | shell |
 | R2 | Wifi drops during the live demo | 2 | 5 | 10 | `backend/data/demo_cache/*.json` pre-warmed on 3 sample PDFs before the demo. Re-run serves cached payloads; UI shows "Served from demo cache" badge. | shell |
 | R3 | ClawView bbox misalignment on scanned / rasterized PDFs | 4 | 3 | 12 | `/v1/clawview` catches exceptions and returns a handled error. UI renders an inline message instead of blanking. A side-pane risk list is the planned fallback if bbox alignment breaks on demo day. | clawview |
 | R4 | Verdict inconsistency across reruns (F7 break) | 3 | 4 | 12 | Temperature 0.1 on Recommend. Demo cache makes repeated identical inputs fully deterministic. Covered by `backend/tests/test_verdict_consistency.py`. | shell |

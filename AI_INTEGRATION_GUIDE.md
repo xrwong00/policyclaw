@@ -106,32 +106,40 @@ async def analyze_policy_xray(policy_input, policy_id):
     raise NotImplementedError()
 ```
 
-Replace the `TODO` sections with actual GLM calls. Example structure:
+Replace the `TODO` sections with actual GLM calls. Every live GLM call in this
+repo routes through the shared streaming helper in `backend/app/core/glm_client.py`
+— streaming is required because Ilmu's gateway closes non-streamed connections past
+~60s, and the helper owns the 3-attempt transport retry + 120s read timeout. Mirror
+this pattern (see `ai_service._call_glm_policy_xray` for the canonical example):
 
 ```python
+from app.core.glm_client import (
+    config,
+    extract_json_from_content,
+    post_glm_with_retry,
+)
+
+
 async def _call_glm_policy_xray(policy_input, policy_id):
     """Call GLM to analyze a policy document."""
-    from openai import AsyncOpenAI  # Use OpenAI SDK for Z.AI (compatible)
-    
-    client = AsyncOpenAI(
-        api_key=config.api_key,
-        base_url=config.api_base,
-    )
-    
-    response = await client.chat.completions.create(
-        model=config.model,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Extract policy clauses for: {policy_input.plan_name}...",
-            }
+    url = f"{config.api_base.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": config.model,
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {"role": "system", "content": "You are PolicyClaw's X-Ray analyst..."},
+            {"role": "user", "content": f"Extract clauses for {policy_input.plan_name}..."},
         ],
-        temperature=0.7,
-        response_format={"type": "json_object"},  # Use instructor for structured outputs
-    )
-    
-    # Parse response and return PolicyXRayResponse
-    ...
+    }
+
+    content = await post_glm_with_retry(url=url, headers=headers, payload=payload)
+    parsed = extract_json_from_content(content)
+    return PolicyXRayResponse.model_validate(parsed)
 ```
 
 ## API Endpoints Reference

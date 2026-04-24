@@ -7,7 +7,8 @@ plain-language explanations in EN + BM, and a "why this matters" note.
 
 Mode selection:
   - No GLM_API_KEY  → deterministic heuristic mock (keyword-based).
-  - Key set, call OK → real GLM annotation via instructor + tenacity.
+  - Key set, call OK → real GLM annotation via the shared streaming
+    `post_glm_with_retry` helper + Pydantic validation.
   - Key set, call fails → mock fallback with confidence_score=45.0,
     matching the ai_service.py degradation pattern.
 
@@ -17,20 +18,16 @@ Env vars consumed (same as ai_service.py):
 
 from __future__ import annotations
 
-import asyncio
 import logging
 from typing import Iterable
 
 from pydantic import BaseModel, Field
-from tenacity import (
-    AsyncRetrying,
-    RetryError,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
 
-from app.core.glm_client import AIServiceConfig
+from app.core.glm_client import (
+    AIServiceConfig,
+    extract_json_from_content,
+    post_glm_with_retry,
+)
 from app.schemas import (
     BoundingBox,
     ClawViewAnnotation,
@@ -190,7 +187,7 @@ _BENIGN_BM = (
 _BENIGN_WHY = "Baseline context so reviewers see the full clause map, not just red flags."
 
 
-# ===== GLM typed-output model (instructor) =====
+# ===== GLM typed-output model =====
 
 
 class _AnnotationDraft(BaseModel):
@@ -381,7 +378,6 @@ def _confidence_band_from_score(score: float) -> ConfidenceBand:
 # ===== Real GLM path =====
 
 _MAX_CLAUSES_PER_CALL = 50
-_GLM_TIMEOUT_SECONDS = 30.0
 
 
 def _select_clauses_for_glm(clauses: list[ClauseWithBBox]) -> list[ClauseWithBBox]:
@@ -402,15 +398,18 @@ def _build_glm_prompt(clauses: list[ClauseWithBBox]) -> list[dict]:
     )
 
     system = (
-        "You are an insurance policy analyst for Malaysian consumers. For each "
-        "clause provided, return a JSON annotation with: clause_id, risk_level "
-        "(red | yellow | green), plain_explanation_en (≤80 words), "
-        "plain_explanation_bm (≤80 words in Bahasa Malaysia), and "
-        "why_this_matters (≤40 words). Red = active financial risk to the "
-        "policyholder. Yellow = conditional risk the buyer should understand. "
+        "You are an insurance policy analyst for Malaysian consumers. Return "
+        "strict JSON only, no markdown, matching this shape exactly: "
+        '{"annotations": [{"clause_id": string, "risk_level": "red"|"yellow"|"green", '
+        '"plain_explanation_en": string (≤80 words), '
+        '"plain_explanation_bm": string (≤80 words in Bahasa Malaysia), '
+        '"why_this_matters": string (≤40 words)}]}. '
+        "Red = active financial risk to the policyholder. "
+        "Yellow = conditional risk the buyer should understand. "
         "Green = benign/standard. Focus especially on these risk categories:\n"
         f"{category_list}\n"
-        "Do not invent clauses. Only annotate the clauses I provide."
+        "Do not invent clauses. Only annotate the clauses I provide, "
+        "and preserve the exact clause_id I give you."
     )
     user = (
         f"Annotate every clause below. Return results for all {len(clauses)} "
@@ -427,45 +426,31 @@ def _build_glm_prompt(clauses: list[ClauseWithBBox]) -> list[dict]:
 async def _call_glm_annotate(
     clauses: list[ClauseWithBBox], policy_id: str
 ) -> ClawViewResponse:
-    """Real GLM call using instructor + tenacity. Raises on total failure."""
-    # Import locally so the module still imports cleanly when the optional
-    # dependencies are unavailable in a slim deployment.
-    import instructor
-    from openai import AsyncOpenAI
+    """Real GLM call via the shared streaming entry point. Raises on failure.
 
+    Uses `post_glm_with_retry` because the Ilmu gateway drops non-streamed
+    connections past ~60s — see `backend/app/core/glm_client.py`.
+    """
     selected = _select_clauses_for_glm(clauses)
     messages = _build_glm_prompt(selected)
 
-    client = instructor.from_openai(
-        AsyncOpenAI(api_key=config.api_key, base_url=config.api_base),
-        mode=instructor.Mode.JSON,
-    )
+    url = f"{config.api_base.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {config.api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": config.model,
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+        "messages": messages,
+    }
 
-    async def _once() -> _AnnotateBatch:
-        return await asyncio.wait_for(
-            client.chat.completions.create(
-                model=config.model,
-                messages=messages,
-                response_model=_AnnotateBatch,
-                max_retries=0,  # tenacity owns retry policy
-            ),
-            timeout=_GLM_TIMEOUT_SECONDS,
-        )
+    content = await post_glm_with_retry(url=url, headers=headers, payload=payload)
+    parsed = extract_json_from_content(content)
+    batch = _AnnotateBatch.model_validate(parsed)
 
-    batch: _AnnotateBatch | None = None
-    try:
-        async for attempt in AsyncRetrying(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1.5, min=1.5, max=15.0),
-            retry=retry_if_exception_type(Exception),
-            reraise=True,
-        ):
-            with attempt:
-                batch = await _once()
-    except RetryError as exc:
-        raise RuntimeError("GLM annotate call failed after retries") from exc
-
-    if batch is None or not batch.annotations:
+    if not batch.annotations:
         raise RuntimeError("GLM returned no annotations")
 
     return _merge_drafts_with_bboxes(batch.annotations, selected, policy_id)
