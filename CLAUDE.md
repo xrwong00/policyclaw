@@ -26,7 +26,7 @@ Don't erode either of these while refactoring — they're the differentiator.
   - `clawview_service.py` — drives the ClawView (F4 / Wow 1) clause-risk overlay
   - `futureclaw_narrative.py` — single-GLM-call narrative batch for the FutureClaw (F6 / Wow 2) life-event simulator
   - `pdf_parser.py`, `rag.py`, `simulation.py`, `verdict.py`
-  - Data contracts in `backend/app/schemas.py`. Cost/inflation corpus in `backend/data/bnm_corpus/`.
+  - Data contracts in `backend/app/schemas/` (package split by domain: `common`, `policy`, `analyze`, `clawview`, `futureclaw`, `legacy_ai`). Cost/inflation corpus in `backend/data/bnm_corpus/`.
   - Unit tests in `backend/tests/` (run with `pytest backend/tests/ -q`).
 - `frontend/` — Next.js 15 App Router (React 19, TypeScript). Main user flow in `frontend/app/analyze/`.
 - `eval-harness/` — eval-driven-development scaffolding (see its `SKILL.md`).
@@ -86,7 +86,7 @@ Production flow (keep these working):
 - `POST /v1/simulate/affordability` — FutureClaw (F6 / Wow 2) Monte Carlo premium projection
 - `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with GLM narratives
 
-Legacy / scaffolded under `/v1/...` — `/v1/simulate/premium`, `/v1/verdict`, `/v1/policies/upload`, and the `/v1/ai/*` family (F1/F2/F4/F7/F9/F11) — some `/v1/ai/*` endpoints return mock data. Check `backend/app/main.py` before assuming an endpoint is live. CORS is configured in `main.py` for the local frontend origin.
+Legacy / scaffolded under `/v1/...` — `/v1/simulate/premium`, `/v1/verdict`, `/v1/policies/upload`, and the `/v1/ai/*` family (F1/F2/F4/F7/F9/F11) — some `/v1/ai/*` endpoints return mock data. Check `backend/app/api/legacy.py` before assuming an endpoint is live. CORS is configured in `backend/app/main.py` for the local frontend origin.
 
 ## Product principles to preserve
 

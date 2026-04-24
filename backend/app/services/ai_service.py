@@ -14,14 +14,16 @@ Environment variables:
 from __future__ import annotations
 
 import json
-import os
-import asyncio
 from datetime import datetime
-from pathlib import Path
 from uuid import uuid4
 
-import httpx
-
+from app.core.glm_client import (
+    AIServiceConfig,
+    config,
+    confidence_band_from_score as _confidence_band_from_score,
+    extract_json_from_content as _extract_json_from_content,
+    post_glm_with_retry as _post_glm_with_retry,
+)
 from app.schemas import (
     BNMRight,
     BNMRightsScannerResponse,
@@ -44,68 +46,9 @@ from app.schemas import (
 from app.services import demo_cache
 from app.services.verdict import generate_verdict
 
-
-def _load_local_env() -> None:
-    """Load backend/.env into process environment if present."""
-    env_path = Path(__file__).resolve().parents[2] / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
-
-_load_local_env()
-
-
-class AIServiceConfig:
-    """Configuration for AI service."""
-
-    def __init__(self):
-        self.api_key = os.getenv("GLM_API_KEY", "").strip()
-        self.api_base = os.getenv("GLM_API_BASE", "https://api.ilmu.ai/v1").strip()
-        self.is_mock_mode = not self.api_key
-        self.model = os.getenv("GLM_MODEL", "ilmu-glm-5.1").strip() or "ilmu-glm-5.1"
-
-    @property
-    def enabled(self) -> bool:
-        """Check if AI service is enabled (API key provided)."""
-        return not self.is_mock_mode
-
-
-config = AIServiceConfig()
-
-
-def _confidence_band_from_score(score: float) -> ConfidenceBand:
-    if score >= 80.0:
-        return ConfidenceBand.HIGH
-    if score >= 60.0:
-        return ConfidenceBand.MEDIUM
-    return ConfidenceBand.LOW
-
-
-def _extract_json_from_content(content: str) -> dict:
-    """Extract JSON object from model content, including fenced code blocks."""
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3:
-            text = "\n".join(lines[1:-1]).strip()
-
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("Model response does not contain a JSON object")
-
-    return json.loads(text[start : end + 1])
+# `AIServiceConfig` and `config` are re-exported above from `app.core.glm_client`
+# so test code that does `ai_service.AIServiceConfig()` / reassigns
+# `ai_service.config` keeps working without changes.
 
 
 async def _call_glm_policy_xray(
@@ -482,53 +425,6 @@ def _heuristic_policy_verdict(policy: PolicyInput, realistic_10y_cost_myr: float
         projected_10y_savings_myr=projected_savings,
         reasons=reasons,
     )
-
-
-async def _post_glm_with_retry(url: str, headers: dict[str, str], payload: dict) -> str:
-    """Post to GLM endpoint with streaming to avoid gateway timeouts. Returns accumulated content."""
-    streaming_payload = {**payload, "stream": True}
-    attempts = 3
-    backoff_seconds = 1.5
-    last_exc: Exception | None = None
-
-    for attempt in range(1, attempts + 1):
-        try:
-            timeout = httpx.Timeout(120.0, connect=20.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream("POST", url, headers=headers, json=streaming_payload) as response:
-                    if response.status_code >= 400:
-                        body = await response.aread()
-                        raise RuntimeError(
-                            f"GLM API error {response.status_code}: {body[:400].decode(errors='replace')}"
-                        )
-                    parts: list[str] = []
-                    async for line in response.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
-                        chunk = line[6:].strip()
-                        if chunk == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(chunk)
-                            choices = data.get("choices")
-                            if not choices:
-                                continue
-                            delta = choices[0]["delta"].get("content") or ""
-                            parts.append(delta)
-                        except (json.JSONDecodeError, KeyError):
-                            pass
-                    return "".join(parts)
-        except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError) as exc:
-            last_exc = exc
-            if attempt < attempts:
-                await asyncio.sleep(backoff_seconds)
-                backoff_seconds *= 2
-                continue
-            break
-
-    if last_exc is not None:
-        raise last_exc
-    raise RuntimeError("GLM request failed without a captured exception")
 
 
 # ===== MOCK DATA GENERATORS =====

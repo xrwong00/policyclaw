@@ -1,94 +1,15 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import os
-from pathlib import Path
 
-import httpx
-
+from app.core.glm_client import (
+    extract_json_from_content as _extract_json_object,
+    post_glm_with_retry as _post_with_retry,
+)
 from app.schemas import ExtractPolicyProfileResponse
 from app.services.pdf_parser import parse_pdf_chunks
 from app.services.rag import build_context, retrieve_relevant_chunks
-
-
-def _load_local_env() -> None:
-    env_path = Path(__file__).resolve().parents[2] / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
-
-_load_local_env()
-
-
-def _extract_json_object(content: str) -> dict:
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3:
-            text = "\n".join(lines[1:-1]).strip()
-
-    start = text.find("{")
-    end = text.rfind("}")
-    if start == -1 or end == -1 or end <= start:
-        raise ValueError("LLM response did not include a valid JSON object")
-    return json.loads(text[start : end + 1])
-
-
-async def _post_with_retry(url: str, headers: dict[str, str], payload: dict) -> str:
-    streaming_payload = {**payload, "stream": True}
-    retries = 3
-    delay = 1.5
-    last_error: Exception | None = None
-
-    for attempt in range(retries):
-        try:
-            timeout = httpx.Timeout(120.0, connect=15.0)
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                async with client.stream("POST", url, headers=headers, json=streaming_payload) as response:
-                    if response.status_code >= 400:
-                        body = await response.aread()
-                        raise RuntimeError(
-                            f"GLM API error {response.status_code}: {body[:300].decode(errors='replace')}"
-                        )
-                    parts: list[str] = []
-                    async for line in response.aiter_lines():
-                        if not line.startswith("data: "):
-                            continue
-                        chunk = line[6:].strip()
-                        if chunk == "[DONE]":
-                            break
-                        try:
-                            data = json.loads(chunk)
-                            choices = data.get("choices")
-                            if not choices:
-                                continue
-                            delta = choices[0]["delta"].get("content") or ""
-                            parts.append(delta)
-                        except (json.JSONDecodeError, KeyError):
-                            pass
-                    return "".join(parts)
-        except (httpx.ReadTimeout, httpx.ConnectTimeout, httpx.RemoteProtocolError) as exc:
-            last_error = exc
-            if attempt < retries - 1:
-                await asyncio.sleep(delay)
-                delay *= 2
-                continue
-            break
-
-    if last_error:
-        raise last_error
-    raise RuntimeError("LLM request failed")
 
 
 def _normalize_response(parsed: dict) -> ExtractPolicyProfileResponse:

@@ -17,12 +17,12 @@ raises from a GLM problem — the user always sees a valid `AnalyzeResponse`.
 from __future__ import annotations
 
 import hashlib
-import os
 from datetime import date
-from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+# Importing `app.core.glm_client` has the side effect of loading backend/.env.
+from app.core import glm_client as _glm_client  # noqa: F401
 from app.schemas import (
     AnalysisCitation,
     AnalyzeResponse,
@@ -43,24 +43,6 @@ from app.services.ai_service import (
 from app.services.pdf_parser import parse_pdf_chunks
 from app.services.rag import build_context, retrieve_relevant_chunks
 from app.services.simulation import project_premiums
-
-
-def _load_local_env() -> None:
-    env_path = Path(__file__).resolve().parents[2] / ".env"
-    if not env_path.exists():
-        return
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        if key and key not in os.environ:
-            os.environ[key] = value
-
-
-_load_local_env()
 
 
 # ---------- profile → PolicyInput ----------
