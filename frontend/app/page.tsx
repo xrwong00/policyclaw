@@ -86,7 +86,7 @@ export default function HomePage() {
       <section className="landing-hero-section">
         <div className="hero-left">
           <p className="eyebrow">PolicyClaw</p>
-          <h1 className="hero-headline">Claw back what your insurer won&apos;t tell you.</h1>
+          <h1 className="hero-headline">Claw back what your insurer won&rsquo;t tell you.</h1>
           <p className="hero-subtitle">
             AI-powered clarity on your coverage. Spot overlaps. Forecast costs. Claim your rights. All backed by source citations.
           </p>
