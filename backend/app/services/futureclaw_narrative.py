@@ -13,7 +13,6 @@ from typing import Iterable
 
 from pydantic import BaseModel, Field, ValidationError
 from tenacity import (
-    RetryError,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
@@ -137,7 +136,7 @@ async def generate_life_event_narratives(
     prompt = _build_prompt(profile, scenarios)
     try:
         batch = await _call_glm(prompt)
-    except (RetryError, ValidationError, ConnectionError, TimeoutError, Exception) as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — demo must never 500; fall back for any error
         logger.warning("FutureClaw narrative GLM call failed, falling back to mock: %s", exc)
         return _mock_batch(scenarios, fallback_tag="[fallback]")
 
