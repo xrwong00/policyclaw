@@ -177,64 +177,65 @@ export default function AffordabilitySimulator({ policyId, profile }: Affordabil
   }, [policyId]);
 
   return (
-    <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_260px]">
+    <div className="futureclaw-grid-affordability">
       <div>
         {dangerYear !== null && (
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+            className="futureclaw-danger"
           >
             Premium exceeds 10% of income by year <strong>{dangerYear}</strong> under the realistic scenario.
           </motion.div>
         )}
-        <div ref={chartRef} className="h-80 w-full rounded-lg border border-slate-800 bg-slate-900/50 p-3">
+        <div ref={chartRef} className="futureclaw-chart-wrap">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartRows} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid stroke="#1e293b" strokeDasharray="3 3" />
-              <XAxis dataKey="year" stroke="#94a3b8" tickLine={false} />
+              <CartesianGrid stroke="rgba(16, 36, 30, 0.1)" strokeDasharray="3 3" />
+              <XAxis dataKey="year" stroke="#39574c" tickLine={false} />
               <YAxis
-                stroke="#94a3b8"
+                stroke="#39574c"
                 tickLine={false}
                 tickFormatter={(v: number) => `RM${(v / 1000).toFixed(0)}k`}
               />
               <Tooltip
-                contentStyle={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 8 }}
+                contentStyle={{
+                  background: "rgba(255, 255, 255, 0.96)",
+                  border: "1px solid rgba(16, 36, 30, 0.14)",
+                  borderRadius: 10,
+                  color: "#10241e",
+                }}
                 formatter={(value) => formatMyr(value)}
               />
               <Legend />
               <ReferenceLine
                 y={incomeThreshold}
-                stroke="#ef4444"
+                stroke="#c84f33"
                 strokeDasharray="5 3"
-                label={{ value: "10% of income", fill: "#fca5a5", fontSize: 11, position: "insideTopRight" }}
+                label={{ value: "10% of income", fill: "#c84f33", fontSize: 11, position: "insideTopRight" }}
               />
-              <Line type="monotone" dataKey="optimistic" stroke="#34d399" strokeWidth={2} dot={false} name="Optimistic" />
-              <Line type="monotone" dataKey="realistic" stroke="#f59e0b" strokeWidth={2.5} dot={false} name="Realistic" />
-              <Line type="monotone" dataKey="pessimistic" stroke="#ef4444" strokeWidth={2} dot={false} name="Pessimistic" />
+              <Line type="monotone" dataKey="optimistic" stroke="#2f7a3d" strokeWidth={2} dot={false} name="Optimistic" />
+              <Line type="monotone" dataKey="realistic" stroke="#b87a22" strokeWidth={2.5} dot={false} name="Realistic" />
+              <Line type="monotone" dataKey="pessimistic" stroke="#c84f33" strokeWidth={2} dot={false} name="Pessimistic" />
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-          <span>
+        <div className="futureclaw-status-row">
+          <span className="futureclaw-status">
             {loading
               ? "Re-running 1000-run Monte Carlo…"
               : mcScenarios
                 ? "1000-run Monte Carlo — BNM 2014–2024 anchor"
                 : "Live preview — Monte Carlo pending"}
           </span>
-          {error && <span className="text-red-300">{error}</span>}
-          <button
-            type="button"
-            onClick={onExport}
-            className="rounded border border-slate-700 px-3 py-1 text-slate-200 transition-colors hover:bg-slate-800"
-          >
+          {error && <span className="futureclaw-error">{error}</span>}
+          <button type="button" onClick={onExport} className="futureclaw-export">
             Export PNG
           </button>
         </div>
       </div>
 
-      <aside className="space-y-5">
+      <aside className="futureclaw-aside">
         <SliderField
           label="Medical inflation"
           value={inflationPct}
@@ -253,12 +254,12 @@ export default function AffordabilitySimulator({ policyId, profile }: Affordabil
           step={0.25}
           unit="%"
         />
-        <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4 text-sm">
-          <p className="text-xs uppercase tracking-widest text-slate-400">10-year cumulative (realistic)</p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-300">
+        <div className="futureclaw-cumulative">
+          <p className="futureclaw-cumulative-label">10-year cumulative (realistic)</p>
+          <p className="futureclaw-cumulative-value">
             RM {cumulative.toLocaleString("en", { maximumFractionDigits: 0 })}
           </p>
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="futureclaw-cumulative-note">
             Source: BNM Financial Stability Review — medical inflation 2014–2024.
           </p>
         </div>
@@ -279,14 +280,14 @@ interface SliderFieldProps {
 
 function SliderField({ label, value, onChange, min, max, step, unit }: SliderFieldProps) {
   return (
-    <label className="block">
-      <div className="flex items-center justify-between text-sm">
-        <span className="text-slate-300">{label}</span>
-        <span className="font-mono text-emerald-300">
+    <label className="slider-field">
+      <span className="slider-field-head">
+        <span className="slider-field-label">{label}</span>
+        <span className="slider-field-value">
           {value.toFixed(2)}
           {unit}
         </span>
-      </div>
+      </span>
       <input
         type="range"
         min={min}
@@ -294,9 +295,8 @@ function SliderField({ label, value, onChange, min, max, step, unit }: SliderFie
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="mt-2 w-full accent-emerald-400"
       />
-      <div className="mt-1 flex justify-between text-xs text-slate-500">
+      <span className="slider-field-endpoints">
         <span>
           {min}
           {unit}
@@ -305,7 +305,7 @@ function SliderField({ label, value, onChange, min, max, step, unit }: SliderFie
           {max}
           {unit}
         </span>
-      </div>
+      </span>
     </label>
   );
 }
