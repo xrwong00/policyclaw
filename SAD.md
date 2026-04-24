@@ -158,7 +158,7 @@ sequenceDiagram
 ```
 
 **Reliability envelope (PRD §9.2).**
-- Each GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`: streaming SSE (required — Ilmu drops non-streamed connections past ~60s), 3 transport-error retries with exponential backoff, 120s httpx read timeout.
+- Each GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`: streaming SSE (required — Ilmu drops non-streamed connections past ~60s) with exponential-backoff retries. Default budget is 3 attempts / 120s httpx read timeout; callers can tighten it per call (ClawView uses `attempts=2, read_timeout_s=30.0` so the Annotate path falls back to the heuristic mock within ~60s).
 - Every GLM call has a deterministic fallback (`_mock_*` / `_heuristic_*`). The pipeline never hard-fails on GLM issues.
 - `analyze_health_score` + `analyze_policy_xray` + `analyze_policy_verdict` are all demo-cache read-through: identical inputs return identical outputs even across fresh processes, satisfying F7 verdict consistency.
 - Temperature 0.1 on Recommend guarantees low entropy in production.

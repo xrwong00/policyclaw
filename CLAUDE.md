@@ -75,7 +75,7 @@ Pytest lives in `backend/tests/` and runs via `pytest backend/tests/ -q` (also e
 3. **Score** — policy + user profile → 4 sub-scores: Coverage Adequacy, Affordability, Premium Stability, Clarity & Trust (drives Health Score gauge)
 4. **Recommend** — all above + simulation results → `Verdict + 3 Reasons + Confidence + MYR impact + Citations`
 
-Total latency target: ~15s. Every GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`, which streams SSE chunks (required — Ilmu's gateway closes non-streamed connections past ~60s) and retries transport errors 3 times with exponential backoff under a 120s httpx read timeout. If the Annotate call fails, ClawView should degrade gracefully ("limited annotation available") without blocking the rest of the flow.
+Total latency target: ~15s. Every GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`, which streams SSE chunks (required — Ilmu's gateway closes non-streamed connections past ~60s) and retries transport errors with exponential backoff. Defaults: 3 attempts, 120s httpx read timeout. Callers can override per call — ClawView's Annotate uses `attempts=2, read_timeout_s=30.0` so it falls back to the heuristic mock within ~60s instead of tying up the frontend for minutes. If the Annotate call fails, ClawView degrades gracefully ("limited annotation available") without blocking the rest of the flow.
 
 ## Current endpoint surface
 

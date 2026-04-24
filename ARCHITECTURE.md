@@ -61,8 +61,10 @@ end-to-end latency target of **≤15s** is achievable.
 | 3. Score     | `analyze_health_score`   | `/api/analyze` (internal) | 0.2  | `HealthScore` — 4 sub-scores, EN+BM narrative   | `_heuristic_health_score`        |
 | 4. Recommend | `analyze_policy_verdict` | `/api/analyze` (internal) | 0.1  | `PolicyVerdict` — Keep/Switch/Dump + reasons    | `_heuristic_policy_verdict`      |
 
-Each call is wrapped in a streamed POST with 3-attempt exponential-backoff
-retry (see `core.glm_client.post_glm_with_retry`) and a per-call
+Each call is wrapped in a streamed POST with exponential-backoff retry
+(see `core.glm_client.post_glm_with_retry` — default 3 attempts / 120s
+read timeout, overridable per call: ClawView's Annotate uses 2 attempts
+/ 30s so it falls back to the heuristic mock fast) and a per-call
 `demo_cache` read-through so identical inputs yield identical outputs
 (F7 verdict-consistency requirement).
 
@@ -123,7 +125,7 @@ backend/app/core/glm_client.py
 ├── config: AIServiceConfig       # process-wide singleton
 ├── confidence_band_from_score()  # shared scorer → HIGH / MEDIUM / LOW
 ├── extract_json_from_content()   # tolerates ```json fences
-├── post_glm_with_retry()         # streamed POST w/ 3-attempt backoff
+├── post_glm_with_retry()         # streamed POST w/ backoff retries (per-call timeout + attempts)
 └── GLMClient                     # optional object handle (chat_url, headers, complete_json)
 ```
 
