@@ -8,6 +8,7 @@
   --accent: #c84f33;
   --panel: rgba(255, 255, 255, 0.82);
   --border: rgba(16, 36, 30, 0.14);
+  color-scheme: light;
 }
 
 * {
