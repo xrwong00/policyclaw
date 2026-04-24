@@ -225,6 +225,16 @@ class AnalyzeResponse(BaseModel):
     summary_reasons: list[str] = Field(min_length=1, max_length=6)
     citations: list[AnalysisCitation] = Field(min_length=1, max_length=12)
 
+    # 3-call /api/analyze pipeline outputs (optional, defaulted for backward compat).
+    # ClawView annotations are served by /v1/clawview separately — not carried here.
+    reasons: list[Reason] = Field(default_factory=list, max_length=5)
+    projected_10y_premium_myr: float = Field(default=0.0, ge=0)
+    projected_10y_savings_myr: float = Field(default=0.0, ge=0)
+    health_score: "HealthScore | None" = None
+    analysis_id: str = ""
+    cached: bool = False
+    needs_rider: bool = False
+
 
 class ExtractedPolicyProfile(BaseModel):
     option_id: str
@@ -324,3 +334,8 @@ class LifeEventSimulationResponse(BaseModel):
     data_citations: list[Citation] = Field(min_length=1)
     confidence_score: float = Field(ge=0.0, le=100.0)
     confidence_band: ConfidenceBand
+
+
+# Resolve forward references for AnalyzeResponse, which references
+# HealthScore and ClawViewAnnotation defined later in this module.
+AnalyzeResponse.model_rebuild()
