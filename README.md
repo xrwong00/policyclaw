@@ -1,5 +1,7 @@
 # PolicyClaw
 
+[![CI](https://github.com/xrwong00/policyclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/xrwong00/policyclaw/actions/workflows/ci.yml)
+
 **Claw back control from policy confusion.**
 
 PolicyClaw is an AI decision-intelligence product that turns dense insurance PDFs into clear, evidence-backed recommendations. Upload a policy and in minutes see what you are paying for, where coverage overlaps, which rights you can act on, and whether to **Keep**, **Switch**, **Downgrade**, or **Dump**.
@@ -62,6 +64,28 @@ Outputs a direct action recommendation — **Keep**, **Switch**, **Downgrade**, 
    - **Recommend** — all of the above + simulation results → Verdict + Reasons + Confidence + Citations
 5. **Decision Output:** UI presents verdict, projected savings, overlap/rights signals, ClawView overlay, and FutureClaw projections.
 
+```mermaid
+flowchart LR
+    U["User"]
+    subgraph FE["Next.js 15"]
+        Wizard["/analyze wizard"]
+        Viewer["ClawView & FutureClaw"]
+    end
+    subgraph BE["FastAPI"]
+        API["api/ routers"]
+        SVC["services/"]
+        CORE["core/glm_client.py<br/>(single GLM seam)"]
+    end
+    ILMU[("Ilmu GLM<br/>ilmu-glm-5.1")]
+
+    U --> Wizard --> API --> SVC --> CORE --> ILMU
+    API -->|AnalyzeResponse · ClawViewResponse · FutureClaw| Viewer
+```
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the deeper dependency map,
+sequence diagram, and per-stage latency budget. The Pydantic contracts used
+at every API boundary are in [`docs/erd.md`](docs/erd.md).
+
 ## Tech Stack
 
 - **Frontend:** Next.js 15 (App Router), React 19, TypeScript 5.8, Tailwind 4, Recharts, Framer Motion, Zustand, TanStack Query, react-pdf-viewer
@@ -72,13 +96,15 @@ Outputs a direct action recommendation — **Keep**, **Switch**, **Downgrade**, 
 
 ## Project Structure
 
+- [ARCHITECTURE.md](ARCHITECTURE.md) — system diagram, 4-call GLM pipeline, LLM-as-service-layer
 - [PRD.md](PRD.md) — product requirements and scope (authoritative spec)
 - [SAD.md](SAD.md) — system architecture document
 - [QATD.md](QATD.md) — QA and test design document
 - [AI_INTEGRATION_GUIDE.md](AI_INTEGRATION_GUIDE.md) — how to wire GLM-backed endpoints
-- [backend](backend) — FastAPI services and AI/document pipeline
-- [frontend](frontend) — Next.js product interface
-- [eval-harness](eval-harness) — eval-driven-development scaffolding
+- [docs/erd.md](docs/erd.md) — Mermaid ERD of the Pydantic data model
+- [backend/](backend) — FastAPI service (`api/` routers, `services/`, `core/glm_client.py`, `schemas/`)
+- [frontend/](frontend) — Next.js product interface
+- [evals/](evals) — JSON-driven GLM pipeline eval harness (`python evals/run.py`)
 
 ## Setup
 
@@ -106,16 +132,14 @@ Do **not** install requirements against the system Python — uvicorn loads from
 
 ### 2) Backend environment
 
-Create `backend/.env` with:
+Copy the committed template and fill in your key:
 
-```
-GLM_API_KEY=your_ilmu_api_key
-GLM_API_BASE=https://api.ilmu.ai/v1
-GLM_MODEL=ilmu-glm-5.1
-DEBUG=false
+```bash
+cp backend/.env.example backend/.env
+# edit backend/.env and set GLM_API_KEY=...
 ```
 
-Without `GLM_API_KEY`, the backend falls back to mock GLM responses — the flow still runs end-to-end but outputs are synthetic.
+Without `GLM_API_KEY`, the backend falls back to mock GLM responses — the flow still runs end-to-end but outputs are synthetic. `backend/.env` is gitignored; `backend/.env.example` is the committed template.
 
 ### 3) Run backend
 
@@ -163,10 +187,27 @@ npm run dev
 - `POST /v1/verdict`
 - `/v1/ai/*` family (policy-xray, overlap-map, bnm-rights-scanner, voice-interrogation, multilingual-explainer, citations, status) — several return mock data; check `backend/app/main.py` before depending on them
 
+## Makefile targets
+
+The root `Makefile` exposes the commands judges / CI should run:
+
+| Target           | What it does                                              |
+|------------------|-----------------------------------------------------------|
+| `make install`   | `pip install -r backend/requirements.txt` + `npm ci --prefix frontend` |
+| `make dev-backend` | Start FastAPI on `127.0.0.1:8000` with auto-reload      |
+| `make dev-frontend`| Start Next.js on `127.0.0.1:3000` with hot reload       |
+| `make test`      | `pytest backend/tests/ -q`                                |
+| `make lint`      | `ruff check backend/` + `npm run lint --prefix frontend`  |
+| `make evals`     | `python evals/run.py` — 12-case GLM-pipeline harness      |
+| `make ci-local`  | test + lint + build + evals (mirrors `.github/workflows/ci.yml`) |
+
+On Windows the Makefile runs under **Git Bash** (targets use bash syntax, not PowerShell).
+
 ## Testing
 
 ```bash
-pytest backend/tests/ -q
+pytest backend/tests/ -q   # 33 tests across extraction, FutureClaw Monte Carlo, orchestrator, verdict consistency
+python evals/run.py        # 12-case GLM pipeline eval harness (see evals/results.md)
 ```
 
 Covers extraction, FutureClaw (Monte Carlo + life-event + narrative), orchestrator, simulation, and verdict consistency.
