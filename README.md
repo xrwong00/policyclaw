@@ -115,6 +115,11 @@ Frontend:
 - `POST /api/extract-policy-profile` - Extract structured policy profile(s) from uploaded PDF(s)
 - `POST /api/analyze` - Execute full analysis and return verdict, reasons, confidence, and citations
 
+### FutureClaw simulator (F6, Wow Factor 2)
+
+- `POST /v1/simulate/affordability` - 1000-run Monte Carlo premium projection; returns 3 scenario bands (optimistic / realistic / pessimistic) over 10 years
+- `POST /v1/simulate/life-event` - 4 life-event scenarios (cancer / heart attack / disability / death) with covered / co-pay / out-of-pocket breakdown and GLM-generated narratives (EN + BM)
+
 ### Legacy compatibility endpoints
 
 - `GET /health`

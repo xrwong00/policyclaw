@@ -23,12 +23,16 @@ Don't erode either of these while refactoring — they're the differentiator.
   - `analyze_service.py` — orchestrates the full analysis flow
   - `profile_extraction_service.py` — auto-fills `PolicyProfile` fields from PDFs
   - `ai_service.py` — GLM API wrapper (falls back to mock responses when `GLM_API_KEY` is unset)
+  - `clawview_service.py` — drives the ClawView (F4 / Wow 1) clause-risk overlay
+  - `futureclaw_narrative.py` — single-GLM-call narrative batch for the FutureClaw (F6 / Wow 2) life-event simulator
   - `pdf_parser.py`, `rag.py`, `simulation.py`, `verdict.py`
-  - Data contracts in `backend/app/schemas.py`.
+  - Data contracts in `backend/app/schemas.py`. Cost/inflation corpus in `backend/data/bnm_corpus/`.
+  - Unit tests in `backend/tests/` (run with `pytest backend/tests/ -q`).
 - `frontend/` — Next.js 15 App Router (React 19, TypeScript). Main user flow in `frontend/app/analyze/`.
 - `eval-harness/` — eval-driven-development scaffolding (see its `SKILL.md`).
 - `scripts/` — setup helpers (`install-gstack.sh`).
 - `.claude/rules/` — coding standards. Start with `common/development-workflow.md` and `common/agents.md`; language rules in `python/` and `typescript/`.
+- Root-level docs: `README.md` (public framing), `PRD.md` (authoritative spec), `AI_INTEGRATION_GUIDE.md` (how to wire `/v1/ai/*` scaffolds + live Wow-Factor endpoints), `AI_SCAFFOLDING_SUMMARY.md` (historical record of the initial F1-F11 scaffolding).
 
 ## Tech stack
 
@@ -57,7 +61,7 @@ npm run build
 npm run lint
 ```
 
-No automated test suite is wired up yet. Hour 21-23 of the PRD plan adds 3-4 pytest unit tests (extraction, simulation, recommendation). If you add tests, follow `.claude/rules/common/testing.md`.
+Pytest lives in `backend/tests/` and runs via `pytest backend/tests/ -q` (also enforced by CI). FutureClaw has 13 unit tests covering the Monte Carlo + life-event + confidence + narrative-mock paths. Extraction and recommendation tests are still the Hour 21-23 PRD target. If you add tests, follow `.claude/rules/common/testing.md`.
 
 ## Target architecture (per PRD §9.4) — 4 GLM calls per analysis
 
@@ -73,8 +77,11 @@ Total latency target: ~15s. Wrap each call in `tenacity` retry (3 attempts, expo
 Production flow (keep these working):
 - `POST /api/extract-policy-profile` — extract `PolicyProfile` candidates from uploaded PDFs
 - `POST /api/analyze` — full analysis → verdict + reasons + confidence + citations
+- `POST /v1/clawview` — ClawView (F4 / Wow 1) clause-level risk overlay
+- `POST /v1/simulate/affordability` — FutureClaw (F6 / Wow 2) Monte Carlo premium projection
+- `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with GLM narratives
 
-Legacy / scaffolded under `/v1/...` — some `/v1/ai/*` endpoints return mock data. Check `backend/app/main.py` before assuming an endpoint is live. CORS is configured in `main.py` for the local frontend origin.
+Legacy / scaffolded under `/v1/...` — `/v1/simulate/premium`, `/v1/verdict`, `/v1/policies/upload`, and the `/v1/ai/*` family (F1/F2/F4/F7/F9/F11) — some `/v1/ai/*` endpoints return mock data. Check `backend/app/main.py` before assuming an endpoint is live. CORS is configured in `main.py` for the local frontend origin.
 
 ## Product principles to preserve
 
