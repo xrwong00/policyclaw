@@ -2,7 +2,9 @@
 
 **Claw back control from policy confusion.**
 
-PolicyClaw is an AI decision-intelligence product that turns dense insurance PDFs into clear, evidence-backed recommendations. In minutes, users can see what they are paying for, where policies overlap, what rights they can act on, and whether to keep, switch, downgrade, or dump.
+PolicyClaw is an AI decision-intelligence product that turns dense insurance PDFs into clear, evidence-backed recommendations. Upload a policy and in minutes see what you are paying for, where coverage overlaps, which rights you can act on, and whether to **Keep**, **Switch**, **Downgrade**, or **Dump**.
+
+Built for **UMHackathon 2026** — Domain 2: AI for Economic Empowerment & Decision Intelligence.
 
 ## Problem
 
@@ -24,9 +26,17 @@ PolicyClaw combines document understanding and AI reasoning into one decision fl
 3. Run AI analysis for coverage quality, overlap risk, and rights detection.
 4. Return a final verdict with confidence and citations.
 
-This is decision support, not blind automation: users can review and edit extracted fields before analysis.
+This is decision support, not blind automation: users review and edit extracted fields before analysis, and every recommendation ships with a confidence score and source citations.
 
 ## Key Features
+
+### ClawView — risk overlay on the actual PDF
+Color-coded clause risk (green / yellow / red) rendered directly over the uploaded policy using per-clause bounding boxes. Click any highlight for a plain-language explanation and a citation back to the exact clause. This is the visual demo moment.
+
+### FutureClaw — 10-year interactive simulator
+Monte Carlo simulation with two toggleable modes:
+- **Affordability:** premium vs income trajectory across optimistic / realistic / pessimistic scenario bands.
+- **Life Event:** four scenarios (Cancer, Heart Attack, Disability, Death of primary earner) with covered / co-pay / out-of-pocket breakdowns and GLM-generated narratives in **EN + BM**.
 
 ### Policy X-Ray
 Transforms complex policy text into a clear summary of plan type, premium, coverage limit, dates, and riders.
@@ -38,98 +48,123 @@ Identifies duplicate or unnecessary coverage across policy documents to surface 
 Flags relevant Bank Negara Malaysia consumer-rights signals found in policy wording.
 
 ### Verdict Engine
-Outputs a direct action recommendation: **Keep**, **Switch**, **Downgrade**, or **Dump** with reasons, confidence score, and supporting citations.
+Outputs a direct action recommendation — **Keep**, **Switch**, **Downgrade**, or **Dump** — with reasons, confidence score, projected MYR impact, and supporting citations.
 
 ## How It Works
 
 1. **Upload PDF(s):** User uploads one or more insurance policies.
 2. **Auto-Extraction:** Backend extracts candidate policy profiles and auto-fills fields.
 3. **Human Review:** User confirms or edits values (including required monthly income).
-4. **AI Analysis:** System runs retrieval + LLM analysis against the uploaded content.
-5. **Decision Output:** UI presents verdict, projected savings, overlap/rights signals, and citations.
+4. **AI Analysis:** Four GLM calls run against the uploaded content:
+   - **Extract** — raw text → structured `Policy` model
+   - **Annotate** — each clause → risk level + explanation (drives ClawView)
+   - **Score** — sub-scores for Coverage, Affordability, Stability, Clarity (drives Health Score)
+   - **Recommend** — all of the above + simulation results → Verdict + Reasons + Confidence + Citations
+5. **Decision Output:** UI presents verdict, projected savings, overlap/rights signals, ClawView overlay, and FutureClaw projections.
 
 ## Tech Stack
 
-- **Frontend:** Next.js, React, TypeScript
-- **Backend:** FastAPI, Pydantic
-- **AI + Retrieval:** GLM integration (Ilmu/BigModel-compatible), PDF parsing, chunking, retrieval pipeline
-- **Document Processing:** pypdf
-- **Transport:** HTTP multipart uploads + JSON APIs
+- **Frontend:** Next.js 15 (App Router), React 19, TypeScript 5.8, Tailwind 4, Recharts, Framer Motion, Zustand, TanStack Query, react-pdf-viewer
+- **Backend:** Python 3.10+ (3.12 recommended), FastAPI 0.115, Pydantic v2, numpy, httpx, tenacity, instructor
+- **PDF processing:** pypdf for text, PyMuPDF (fitz) for per-clause bounding boxes used by ClawView
+- **LLM:** Z.AI GLM via Ilmu (`ilmu-glm-5.1` at `https://api.ilmu.ai/v1`) — an authorized Z.AI endpoint
+- **Storage:** In-memory backend state + browser `localStorage` for MVP; Supabase (Postgres + Auth + Storage + pgvector) is a post-MVP target
 
 ## Project Structure
 
-- [PRD.md](PRD.md) - Product requirements and scope
-- [backend](backend) - FastAPI services and AI/document pipeline
-- [frontend](frontend) - Next.js product interface
+- [PRD.md](PRD.md) — product requirements and scope (authoritative spec)
+- [SAD.md](SAD.md) — system architecture document
+- [QATD.md](QATD.md) — QA and test design document
+- [AI_INTEGRATION_GUIDE.md](AI_INTEGRATION_GUIDE.md) — how to wire GLM-backed endpoints
+- [backend](backend) — FastAPI services and AI/document pipeline
+- [frontend](frontend) — Next.js product interface
+- [eval-harness](eval-harness) — eval-driven-development scaffolding
 
 ## Setup
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.10+ (3.12 recommended)
 - Node.js 20+
 
-### 1) Install backend dependencies
+### 1) Backend dependencies
 
-```powershell
-c:/Users/USER/Documents/policyclaw/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
+```bash
+python -m venv .venv
+# macOS/Linux:
+source .venv/bin/activate
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+
+python -m pip install -r backend/requirements.txt
 ```
 
-### 2) Configure backend environment
+### 2) Backend environment
 
-Use [backend/.env.example](backend/.env.example) as reference. Key variables:
+Create `backend/.env` with:
 
-- `GLM_API_KEY=`
-- `GLM_API_BASE=https://open.bigmodel.cn/api/paas/v4`
-- `GLM_MODEL=glm-5.1`
-- `DEBUG=false`
+```
+GLM_API_KEY=your_ilmu_api_key
+GLM_API_BASE=https://api.ilmu.ai/v1
+GLM_MODEL=ilmu-glm-5.1
+DEBUG=false
+```
+
+Without `GLM_API_KEY`, the backend falls back to mock GLM responses — the flow still runs end-to-end but outputs are synthetic.
 
 ### 3) Run backend
 
-```powershell
-c:/Users/USER/Documents/policyclaw/.venv/Scripts/python.exe -m uvicorn app.main:app --app-dir backend --reload
+```bash
+python -m uvicorn app.main:app --app-dir backend --reload
 ```
-
-Backend:
 
 - API: http://127.0.0.1:8000
 - Docs: http://127.0.0.1:8000/docs
+- Health: http://127.0.0.1:8000/health
 
-### 4) Install and run frontend
+### 4) Frontend
 
-```powershell
+```bash
 cd frontend
 npm install
-copy .env.local.example .env.local
 npm run dev
 ```
 
-Frontend:
-
 - App: http://127.0.0.1:3000
+- Main flow: http://127.0.0.1:3000/analyze
 
 ## API Surface
 
-### Current production flow
+### Core flow
 
-- `POST /api/extract-policy-profile` - Extract structured policy profile(s) from uploaded PDF(s)
-- `POST /api/analyze` - Execute full analysis and return verdict, reasons, confidence, and citations
+- `POST /api/extract-policy-profile` — extract structured `PolicyProfile` candidate(s) from uploaded PDF(s)
+- `POST /api/analyze` — full analysis → verdict, reasons, confidence, and citations
 
-### FutureClaw simulator (F6, Wow Factor 2)
+### Wow-factor endpoints
 
-- `POST /v1/simulate/affordability` - 1000-run Monte Carlo premium projection; returns 3 scenario bands (optimistic / realistic / pessimistic) over 10 years
-- `POST /v1/simulate/life-event` - 4 life-event scenarios (cancer / heart attack / disability / death) with covered / co-pay / out-of-pocket breakdown and GLM-generated narratives (EN + BM)
+- `POST /v1/clawview` — ClawView clause-level risk overlay (drives the PDF highlight layer)
+- `POST /v1/simulate/affordability` — FutureClaw Monte Carlo premium projection, 3 scenario bands over 10 years
+- `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with GLM narratives (EN + BM)
 
-### Legacy compatibility endpoints
+### Scaffolded / legacy
 
 - `GET /health`
 - `POST /v1/policies/upload`
 - `POST /v1/simulate/premium`
 - `POST /v1/verdict`
+- `/v1/ai/*` family (policy-xray, overlap-map, bnm-rights-scanner, voice-interrogation, multilingual-explainer, citations, status) — several return mock data; check `backend/app/main.py` before depending on them
+
+## Testing
+
+```bash
+pytest backend/tests/ -q
+```
+
+Covers extraction, FutureClaw (Monte Carlo + life-event + narrative), orchestrator, simulation, and verdict consistency.
 
 ## Why This Matters
 
-PolicyClaw converts insurance from a trust-heavy black box into a transparent decision system. The product goal is simple: faster, clearer, and more defensible policy decisions for everyday policyholders.
+PolicyClaw converts insurance from a trust-heavy black box into a transparent decision system. Faster, clearer, and more defensible policy decisions for everyday policyholders.
 
 ## Disclaimer
 
