@@ -1,6 +1,21 @@
 "use client";
 
-import { DragEvent, FormEvent, useMemo, useState } from "react";
+import { DragEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+
+import ActionSummary from "./components/ActionSummary";
+import ErrorBoundary from "./components/ErrorBoundary";
+import FutureClawSimulator, {
+  type PolicyProfile as FutureClawProfile,
+} from "./components/FutureClawSimulator";
+import HealthScoreGauge from "./components/HealthScoreGauge";
+import LanguageToggle from "./components/LanguageToggle";
+import { PdfViewer } from "./components/PdfViewer";
+import VerdictCard from "./components/VerdictCard";
+import { t } from "./lib/i18n";
+import { useLangStore } from "./lib/store";
+import type { AnalyzeResponse } from "./lib/types";
+import { postClawView, type ClawViewResponse } from "@/lib/api";
 
 type FormState = {
   insurer_name: string;
@@ -14,7 +29,9 @@ type FormState = {
   renewal_date: string;
   coverage_limit: string;
   riders: string;
+  age_now: string;
   projected_income_monthly_myr: string;
+  expected_income_growth_pct: string;
 };
 
 type ExtractedPolicyProfile = {
@@ -41,22 +58,6 @@ type ExtractPolicyProfileResponse = {
   notes: string[];
 };
 
-type AnalysisCitation = {
-  source: string;
-  page: number;
-  excerpt: string;
-};
-
-type AnalyzeResponse = {
-  verdict: "keep" | "downgrade" | "switch" | "dump";
-  projected_savings: number;
-  overlap_detected: boolean;
-  bnm_rights_detected: boolean;
-  confidence_score: number;
-  summary_reasons: string[];
-  citations: AnalysisCitation[];
-};
-
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 const emptyForm: FormState = {
@@ -71,22 +72,10 @@ const emptyForm: FormState = {
   renewal_date: "",
   coverage_limit: "",
   riders: "",
+  age_now: "",
   projected_income_monthly_myr: "",
+  expected_income_growth_pct: "3",
 };
-
-function verdictClass(value: string): string {
-  if (value === "keep") return "pill keep";
-  if (value === "downgrade") return "pill downgrade";
-  if (value === "switch") return "pill switch";
-  return "pill dump";
-}
-
-function formatAmount(value: number, currency: string): string {
-  const amount = new Intl.NumberFormat("en", {
-    maximumFractionDigits: 2,
-  }).format(value);
-  return currency ? `${currency} ${amount}` : amount;
-}
 
 function applyProfileToForm(current: FormState, profile: ExtractedPolicyProfile): FormState {
   return {
@@ -107,7 +96,42 @@ function applyProfileToForm(current: FormState, profile: ExtractedPolicyProfile)
   };
 }
 
+function profileFromForm(form: FormState): FutureClawProfile {
+  const parseFloatOr = (raw: string, fallback: number): number => {
+    const n = Number.parseFloat(raw);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+  const parseIntOr = (raw: string, fallback: number): number => {
+    const n = Number.parseInt(raw, 10);
+    return Number.isFinite(n) ? n : fallback;
+  };
+
+  const rawType = (form.policy_type || "medical").toLowerCase();
+  const policyType: FutureClawProfile["policy_type"] =
+    rawType === "medical" ||
+    rawType === "life" ||
+    rawType === "critical_illness" ||
+    rawType === "takaful" ||
+    rawType === "other"
+      ? rawType
+      : "medical";
+
+  return {
+    insurer: form.insurer_name || "Unknown Insurer",
+    plan_name: form.plan_name || "Unknown Plan",
+    policy_type: policyType,
+    annual_premium_myr: parseFloatOr(form.premium_amount, 3600),
+    coverage_limit_myr: parseFloatOr(form.coverage_limit, 500000),
+    effective_date: form.effective_date || new Date().toISOString().slice(0, 10),
+    age_now: parseIntOr(form.age_now, 38),
+    projected_income_monthly_myr: parseFloatOr(form.projected_income_monthly_myr, 6000),
+    expected_income_growth_pct: parseFloatOr(form.expected_income_growth_pct, 3),
+  };
+}
+
 export default function AnalyzeWorkflow() {
+  const lang = useLangStore((s) => s.lang);
+
   const [form, setForm] = useState<FormState>(emptyForm);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [detectedProfiles, setDetectedProfiles] = useState<ExtractedPolicyProfile[]>([]);
@@ -119,10 +143,28 @@ export default function AnalyzeWorkflow() {
   const [result, setResult] = useState<AnalyzeResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [clawView, setClawView] = useState<ClawViewResponse | null>(null);
+  const [clawViewLoading, setClawViewLoading] = useState(false);
+  const [clawViewError, setClawViewError] = useState<string | null>(null);
+
   const fileNames = useMemo(
     () => selectedFiles.map((file) => file.name).join(", "),
     [selectedFiles]
   );
+
+  const pdfObjectUrl = useMemo(() => {
+    const first = selectedFiles[0];
+    if (!first) return null;
+    return URL.createObjectURL(first);
+  }, [selectedFiles]);
+
+  useEffect(() => {
+    return () => {
+      if (pdfObjectUrl) {
+        URL.revokeObjectURL(pdfObjectUrl);
+      }
+    };
+  }, [pdfObjectUrl]);
 
   const populateFromUpload = async (files: File[]) => {
     setExtracting(true);
@@ -164,20 +206,6 @@ export default function AnalyzeWorkflow() {
       setError(message);
       setDetectedProfiles([]);
       setSelectedProfileId("");
-      setForm((current) => ({
-        ...current,
-        insurer_name: "",
-        policyholder_name: "",
-        plan_name: "",
-        policy_type: "",
-        premium_amount: "",
-        premium_frequency: "",
-        currency: "",
-        effective_date: "",
-        renewal_date: "",
-        coverage_limit: "",
-        riders: "",
-      }));
       setStatus("Extraction failed");
     } finally {
       setExtracting(false);
@@ -185,29 +213,24 @@ export default function AnalyzeWorkflow() {
   };
 
   const onFileChosen = (fileList: FileList | null) => {
-    if (!fileList || fileList.length === 0) {
-      return;
-    }
-
+    if (!fileList || fileList.length === 0) return;
     const incoming = Array.from(fileList);
     const valid = incoming.filter((file) => file.type === "application/pdf");
-
     if (valid.length !== incoming.length) {
       setError("Only PDF files are accepted.");
       return;
     }
-
     setSelectedFiles(valid);
     setResult(null);
+    setClawView(null);
+    setClawViewError(null);
     void populateFromUpload(valid);
   };
 
   const onProfileChange = (nextId: string) => {
     setSelectedProfileId(nextId);
     const chosen = detectedProfiles.find((item) => item.option_id === nextId);
-    if (!chosen) {
-      return;
-    }
+    if (!chosen) return;
     setForm((current) => applyProfileToForm(current, chosen));
   };
 
@@ -227,15 +250,32 @@ export default function AnalyzeWorkflow() {
     onFileChosen(event.dataTransfer.files);
   };
 
+  const fetchClawView = async (file: File) => {
+    setClawViewLoading(true);
+    setClawViewError(null);
+    try {
+      const data = await postClawView(file);
+      setClawView(data);
+    } catch (err) {
+      setClawView(null);
+      setClawViewError(err instanceof Error ? err.message : "ClawView failed");
+    } finally {
+      setClawViewLoading(false);
+    }
+  };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (selectedFiles.length === 0) {
       setError("Please upload at least one policy PDF first.");
       return;
     }
-
     if (!form.projected_income_monthly_myr) {
       setError("Please fill monthly income before analysis.");
+      return;
+    }
+    if (!form.age_now) {
+      setError("Please fill your age before analysis.");
       return;
     }
 
@@ -250,29 +290,26 @@ export default function AnalyzeWorkflow() {
       }
 
       if (form.insurer_name) formData.append("insurer", form.insurer_name);
-      if (form.policyholder_name) {
-        formData.append("policyholder_name", form.policyholder_name);
-      }
+      if (form.policyholder_name) formData.append("policyholder_name", form.policyholder_name);
       if (form.plan_name) formData.append("plan_name", form.plan_name);
       if (form.policy_type) formData.append("policy_type", form.policy_type);
       if (form.premium_amount) formData.append("annual_premium_myr", form.premium_amount);
-      if (form.premium_frequency) {
-        formData.append("premium_frequency", form.premium_frequency);
-      }
+      if (form.premium_frequency) formData.append("premium_frequency", form.premium_frequency);
       if (form.currency) formData.append("currency", form.currency);
       if (form.coverage_limit) formData.append("coverage_limit_myr", form.coverage_limit);
       if (form.effective_date) formData.append("effective_date", form.effective_date);
       if (form.renewal_date) formData.append("renewal_date", form.renewal_date);
       if (form.riders) formData.append("riders", form.riders);
-      if (form.projected_income_monthly_myr) {
+      if (form.age_now) formData.append("age_now", form.age_now);
+      if (form.projected_income_monthly_myr)
         formData.append("projected_income_monthly_myr", form.projected_income_monthly_myr);
-      }
+      if (form.expected_income_growth_pct)
+        formData.append("expected_income_growth_pct", form.expected_income_growth_pct);
 
       const response = await fetch(`${API_BASE}/api/analyze`, {
         method: "POST",
         body: formData,
       });
-
       if (!response.ok) {
         const details = await response.text();
         throw new Error(`Analysis failed (${response.status}): ${details}`);
@@ -281,6 +318,12 @@ export default function AnalyzeWorkflow() {
       const payload = (await response.json()) as AnalyzeResponse;
       setResult(payload);
       setStatus("Analysis complete");
+
+      // Fire the 4th GLM call (ClawView Annotate) — runs in parallel with user review.
+      const firstFile = selectedFiles[0];
+      if (firstFile) {
+        void fetchClawView(firstFile);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown analysis error";
       setError(message);
@@ -295,18 +338,33 @@ export default function AnalyzeWorkflow() {
 
   return (
     <main className="page">
-      <section className="hero">
-        <p className="eyebrow">PolicyClaw</p>
-        <p className="subtitle">
-          AI-powered insurance decision intelligence for policyholders.
-        </p>
+      <section
+        className="hero"
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}
+      >
+        <div>
+          <p className="eyebrow">{t("app_title", lang)}</p>
+          <p className="subtitle">{t("app_subtitle", lang)}</p>
+        </div>
+        <LanguageToggle />
       </section>
 
       <section className="flow-grid">
-        <article className="panel step-card">
+        <motion.article
+          className="panel step-card"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
           <div className="step-head">
             <span className="step-index">Step 1</span>
-            <h2>Upload Policy Documents</h2>
+            <h2>{t("step1_title", lang)}</h2>
           </div>
           <p className="step-note">Upload PDF(s). Fields are auto-detected and loaded into Step 2.</p>
           <label
@@ -330,22 +388,24 @@ export default function AnalyzeWorkflow() {
             )}
           </label>
           {extracting && <p className="status">Extracting fields...</p>}
-        </article>
+        </motion.article>
 
-        <article className="panel step-card">
+        <motion.article
+          className="panel step-card"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25, delay: 0.08 }}
+        >
           <div className="step-head">
             <span className="step-index">Step 2</span>
-            <h2>Review and Analyze</h2>
+            <h2>{t("step2_title", lang)}</h2>
           </div>
           <p className="step-note">Confirm detected fields. Not detected values remain editable.</p>
 
           {detectedProfiles.length > 1 && (
             <label>
               Detected Policy Options
-              <select
-                value={selectedProfileId}
-                onChange={(e) => onProfileChange(e.target.value)}
-              >
+              <select value={selectedProfileId} onChange={(e) => onProfileChange(e.target.value)}>
                 {detectedProfiles.map((profile) => (
                   <option key={profile.option_id} value={profile.option_id}>
                     {profile.display_label}
@@ -461,6 +521,17 @@ export default function AnalyzeWorkflow() {
               />
             </label>
             <label>
+              Age Now
+              <input
+                type="number"
+                min={18}
+                max={100}
+                value={form.age_now}
+                onChange={(e) => setForm({ ...form, age_now: e.target.value })}
+                required
+              />
+            </label>
+            <label>
               Monthly Income
               <input
                 type="number"
@@ -472,12 +543,24 @@ export default function AnalyzeWorkflow() {
                 required
               />
             </label>
+            <label>
+              Expected Income Growth %
+              <input
+                type="number"
+                min={0}
+                max={20}
+                step="0.1"
+                value={form.expected_income_growth_pct}
+                onChange={(e) =>
+                  setForm({ ...form, expected_income_growth_pct: e.target.value })
+                }
+              />
+            </label>
           </form>
           <div style={{ display: "flex", justifyContent: "center", marginTop: "1.5rem" }}>
             <button
               type="button"
               onClick={(e) => {
-                // Find the form element and trigger submit
                 const formEl = e.currentTarget.closest(".step-card")?.querySelector("form");
                 if (formEl) {
                   formEl.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
@@ -486,59 +569,118 @@ export default function AnalyzeWorkflow() {
               disabled={loading || extracting}
               style={{ minWidth: 220 }}
             >
-              {loading ? "Analyzing..." : "Analyze Policy"}
+              {loading ? t("analyzing", lang) : t("analyze_button", lang)}
             </button>
           </div>
-        </article>
+        </motion.article>
       </section>
 
       <p className="status">Status: {status}</p>
-      {error && <p className="status">Error: {error}</p>}
+      {error && (
+        <p className="status" role="alert">
+          Error: {error}
+        </p>
+      )}
 
-      {result && (
-        <section className="results">
+      {loading && (
+        <section className="results" aria-busy="true">
           <article className="panel">
-            <h2>Decision Snapshot</h2>
-            <span className={verdictClass(result.verdict)}>{result.verdict.toUpperCase()}</span>
-            <div className="metrics">
-              <div>
-                <small>Projected Savings</small>
-                <strong>{formatAmount(result.projected_savings, form.currency)}</strong>
-              </div>
-              <div>
-                <small>Overlap Detected</small>
-                <strong>{result.overlap_detected ? "Yes" : "No"}</strong>
-              </div>
-              <div>
-                <small>BNM Rights Detected</small>
-                <strong>{result.bnm_rights_detected ? "Yes" : "No"}</strong>
-              </div>
-              <div>
-                <small>Confidence</small>
-                <strong>{result.confidence_score.toFixed(1)}%</strong>
-              </div>
-            </div>
-            <h3>Summary Reasons</h3>
-            <ul>
-              {result.summary_reasons.map((reason) => (
-                <li key={reason}>{reason}</li>
-              ))}
-            </ul>
-          </article>
-
-          <article className="panel">
-            <h2>Citations</h2>
-            <ul>
-              {result.citations.map((item, idx) => (
-                <li key={`${item.source}-${item.page}-${idx}`}>
-                  <strong>{item.source}</strong> | Page {item.page}
-                  <p>{item.excerpt}</p>
-                </li>
-              ))}
-            </ul>
+            <div
+              style={{
+                height: 180,
+                background:
+                  "linear-gradient(90deg, rgba(0,0,0,0.05), rgba(0,0,0,0.1), rgba(0,0,0,0.05))",
+                backgroundSize: "200% 100%",
+                animation: "shimmer 1.4s infinite",
+                borderRadius: 12,
+              }}
+            />
           </article>
         </section>
       )}
+
+      <AnimatePresence>
+        {result && !loading && (
+          <motion.section
+            className="results"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.3 }}
+            style={{ display: "flex", flexDirection: "column", gap: 20 }}
+          >
+            {result.cached && (
+              <p
+                role="status"
+                style={{
+                  alignSelf: "flex-start",
+                  padding: "4px 10px",
+                  background: "#fef9c3",
+                  color: "#854d0e",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  fontWeight: 600,
+                }}
+              >
+                {t("cached_badge", lang)}
+              </p>
+            )}
+
+            <ErrorBoundary
+              fallback={<article className="panel">ClawView could not render.</article>}
+              resetKey={result.analysis_id}
+            >
+              {pdfObjectUrl && clawView ? (
+                <article className="panel" style={{ padding: 0, overflow: "hidden" }}>
+                  <PdfViewer fileUrl={pdfObjectUrl} annotations={clawView.annotations} />
+                </article>
+              ) : (
+                <article className="panel">
+                  <h3 style={{ marginTop: 0 }}>ClawView</h3>
+                  {clawViewLoading && (
+                    <p style={{ margin: 0, opacity: 0.7 }}>Loading PDF annotations…</p>
+                  )}
+                  {clawViewError && (
+                    <p style={{ margin: 0, color: "#b91c1c" }} role="alert">
+                      ClawView error: {clawViewError}
+                    </p>
+                  )}
+                  {!clawViewLoading && !clawViewError && !clawView && (
+                    <p style={{ margin: 0, opacity: 0.7 }}>
+                      ClawView annotations are loading separately.
+                    </p>
+                  )}
+                </article>
+              )}
+            </ErrorBoundary>
+
+            {result.health_score && (
+              <ErrorBoundary
+                fallback={<article className="panel">Health score unavailable.</article>}
+                resetKey={result.analysis_id}
+              >
+                <HealthScoreGauge score={result.health_score} lang={lang} />
+              </ErrorBoundary>
+            )}
+
+            <ErrorBoundary
+              fallback={<article className="panel">Future simulator unavailable.</article>}
+              resetKey={result.analysis_id}
+            >
+              <FutureClawSimulator
+                policyId={`${form.insurer_name}-${form.plan_name}`.toLowerCase().replace(/\s+/g, "-") || "current"}
+                profile={profileFromForm(form)}
+              />
+            </ErrorBoundary>
+
+            <VerdictCard result={result} lang={lang} />
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <ActionSummary result={result} lang={lang} />
+            </div>
+          </motion.section>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
