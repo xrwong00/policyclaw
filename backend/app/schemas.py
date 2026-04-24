@@ -248,3 +248,79 @@ class ExtractPolicyProfileResponse(BaseModel):
     profiles: list[ExtractedPolicyProfile] = Field(min_length=1, max_length=8)
     detected_count: int = Field(ge=1)
     notes: list[str] = Field(default_factory=list)
+
+
+# ===== F4 CLAWVIEW (WOW 1) =====
+class BoundingBox(BaseModel):
+    page: int = Field(ge=1)
+    x0: float = Field(ge=0)
+    y0: float = Field(ge=0)
+    x1: float = Field(gt=0)
+    y1: float = Field(gt=0)
+
+
+class RiskLevel(str, Enum):
+    GREEN = "green"
+    YELLOW = "yellow"
+    RED = "red"
+
+
+class ClawViewAnnotation(BaseModel):
+    clause_id: str = Field(min_length=1)
+    bbox: BoundingBox
+    risk_level: RiskLevel
+    plain_explanation_en: str = Field(min_length=1, max_length=600)
+    plain_explanation_bm: str = Field(min_length=1, max_length=600)
+    why_this_matters: str = Field(default="", max_length=400)
+    source_page: int = Field(ge=1)
+
+
+class ClawViewResponse(BaseModel):
+    policy_id: str
+    annotations: list[ClawViewAnnotation] = Field(min_length=1)
+    red_count: int = Field(ge=0)
+    yellow_count: int = Field(ge=0)
+    green_count: int = Field(ge=0)
+    confidence_score: float = Field(ge=0.0, le=100.0)
+    confidence_band: ConfidenceBand
+
+
+# ===== F5 HEALTH SCORE =====
+class HealthScore(BaseModel):
+    overall: int = Field(ge=0, le=100)
+    coverage_adequacy: int = Field(ge=0, le=25)
+    affordability: int = Field(ge=0, le=25)
+    premium_stability: int = Field(ge=0, le=25)
+    clarity_trust: int = Field(ge=0, le=25)
+    narrative_en: str = Field(min_length=1, max_length=500)
+    narrative_bm: str = Field(min_length=1, max_length=500)
+    confidence_score: float = Field(ge=0.0, le=100.0)
+    confidence_band: ConfidenceBand
+
+
+# ===== F6 FUTURECLAW LIFE EVENT MODE =====
+class LifeEvent(str, Enum):
+    CANCER = "cancer"
+    HEART_ATTACK = "heart_attack"
+    DISABILITY = "disability"
+    DEATH = "death"
+
+
+class LifeEventScenario(BaseModel):
+    event: LifeEvent
+    total_event_cost_myr: float = Field(ge=0)
+    covered_myr: float = Field(ge=0)
+    copay_myr: float = Field(ge=0)
+    out_of_pocket_myr: float = Field(ge=0)
+    months_income_at_risk: float = Field(ge=0)
+    alternative_out_of_pocket_myr: float | None = Field(default=None, ge=0)
+    narrative_en: str = Field(min_length=1, max_length=500)
+    narrative_bm: str = Field(min_length=1, max_length=500)
+
+
+class LifeEventSimulationResponse(BaseModel):
+    policy_id: str
+    scenarios: list[LifeEventScenario] = Field(min_length=4, max_length=4)
+    data_citations: list[Citation] = Field(min_length=1)
+    confidence_score: float = Field(ge=0.0, le=100.0)
+    confidence_band: ConfidenceBand
