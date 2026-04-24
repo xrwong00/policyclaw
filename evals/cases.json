@@ -1,0 +1,122 @@
+[
+  {
+    "id": "extract.happy_path_medical",
+    "stage": "extract",
+    "description": "Medical policy input produces a well-formed PolicyXRayResponse with at least one clause and a matching policy_id.",
+    "input_fixture": "medical_young_saver",
+    "expected": {
+      "has_attrs": ["policy_id", "insurer", "plan_name", "key_clauses", "gotcha_count", "confidence_score", "confidence_band"],
+      "key_clauses_min": 1,
+      "key_clauses_max": 20,
+      "confidence_score_min": 0,
+      "confidence_score_max": 100,
+      "confidence_band_in": ["low", "medium", "high"]
+    }
+  },
+  {
+    "id": "extract.policy_id_echoes",
+    "stage": "extract",
+    "description": "Extract stage preserves the caller-supplied policy_id verbatim on its response.",
+    "input_fixture": "takaful_family",
+    "expected": {
+      "policy_id_equals_input": true
+    }
+  },
+  {
+    "id": "extract.gotcha_count_matches_flags",
+    "stage": "extract",
+    "description": "PolicyXRayResponse.gotcha_count equals the number of clauses with gotcha_flag=True.",
+    "input_fixture": "critical_illness_midlife",
+    "expected": {
+      "gotcha_count_matches_flags": true
+    }
+  },
+  {
+    "id": "score.subscores_in_range",
+    "stage": "score",
+    "description": "Each HealthScore sub-score stays within [0, 25] and overall is their sum.",
+    "input_fixture": "medical_young_saver",
+    "expected": {
+      "subscore_range": [0, 25],
+      "overall_equals_sum": true
+    }
+  },
+  {
+    "id": "score.overall_not_over_95",
+    "stage": "score",
+    "description": "Heuristic Health Score never returns the mock 95+ that the demo PRD forbids.",
+    "input_fixture": "medical_young_saver",
+    "expected": {
+      "overall_max": 95
+    }
+  },
+  {
+    "id": "score.narratives_non_empty",
+    "stage": "score",
+    "description": "HealthScore always returns non-empty narrative_en and narrative_bm.",
+    "input_fixture": "takaful_family",
+    "expected": {
+      "narrative_en_min_length": 1,
+      "narrative_bm_min_length": 1
+    }
+  },
+  {
+    "id": "recommend.verdict_label_valid",
+    "stage": "recommend",
+    "description": "PolicyVerdict.verdict is one of the four allowed labels.",
+    "input_fixture": "medical_young_saver",
+    "expected": {
+      "verdict_in": ["keep", "downgrade", "switch", "dump"]
+    }
+  },
+  {
+    "id": "recommend.at_least_two_reasons",
+    "stage": "recommend",
+    "description": "Every verdict carries at least two reasons, each with a citation.",
+    "input_fixture": "takaful_family",
+    "expected": {
+      "reasons_min": 2,
+      "reasons_max": 5,
+      "each_reason_has_citation": true
+    }
+  },
+  {
+    "id": "recommend.projected_savings_nonneg",
+    "stage": "recommend",
+    "description": "Projected 10-year savings never go negative.",
+    "input_fixture": "critical_illness_midlife",
+    "expected": {
+      "projected_10y_savings_min": 0
+    }
+  },
+  {
+    "id": "life_event.four_scenarios",
+    "stage": "life_event",
+    "description": "LifeEventSimulationResponse always returns exactly four scenarios (cancer, heart attack, disability, death).",
+    "input_fixture": "medical_young_saver",
+    "expected": {
+      "scenarios_exact_count": 4,
+      "events_contain": ["cancer", "heart_attack", "disability", "death"]
+    }
+  },
+  {
+    "id": "life_event.covered_le_total",
+    "stage": "life_event",
+    "description": "Insurance-covered amount never exceeds total event cost, and every cost component is non-negative.",
+    "input_fixture": "takaful_family",
+    "expected": {
+      "covered_le_total": true,
+      "components_nonneg": true
+    }
+  },
+  {
+    "id": "affordability.three_scenarios_ordered",
+    "stage": "affordability",
+    "description": "Affordability Monte Carlo returns exactly 3 scenarios with cumulative_10y in optimistic ≤ realistic ≤ pessimistic order.",
+    "input_fixture": "medical_young_saver",
+    "expected": {
+      "scenarios_exact_count": 3,
+      "cumulative_ordered": true
+    }
+  }
+]
