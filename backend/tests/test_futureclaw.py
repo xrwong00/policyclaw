@@ -8,6 +8,7 @@ a GLM_API_KEY).
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date
 
 import pytest
@@ -221,3 +222,81 @@ def test_narrative_mock_path_returns_four_tuples_within_schema_limit(monkeypatch
         # Mock narratives reference the MYR figure — sanity check the interpolation.
         assert "RM" in narrative_en
         assert "RM" in narrative_bm
+
+
+# ---------- _call_glm (streaming-path happy case) ----------
+
+
+def test_call_glm_parses_streaming_json_into_narrative_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With GLM_API_KEY set, `_call_glm` POSTs via `post_glm_with_retry` and parses
+    the concatenated stream content into a `_NarrativeBatch`. Stub the streaming
+    helper so the test stays offline."""
+    canned = json.dumps(
+        {
+            "scenarios": [
+                {
+                    "event": "cancer",
+                    "narrative_en": "Cancer narrative in English (stub).",
+                    "narrative_bm": "Naratif kanser dalam Bahasa Malaysia (stub).",
+                },
+                {
+                    "event": "heart_attack",
+                    "narrative_en": "Heart attack narrative (stub).",
+                    "narrative_bm": "Naratif serangan jantung (stub).",
+                },
+                {
+                    "event": "disability",
+                    "narrative_en": "Disability narrative (stub).",
+                    "narrative_bm": "Naratif hilang upaya (stub).",
+                },
+                {
+                    "event": "death",
+                    "narrative_en": "Death-of-primary-earner narrative (stub).",
+                    "narrative_bm": "Naratif kematian pencari nafkah (stub).",
+                },
+            ]
+        }
+    )
+
+    async def fake_post(*, url: str, headers: dict, payload: dict) -> str:  # noqa: ARG001
+        assert payload["response_format"] == {"type": "json_object"}
+        assert payload["messages"][0]["role"] == "system"
+        return canned
+
+    monkeypatch.setattr(futureclaw_narrative, "post_glm_with_retry", fake_post)
+
+    batch = asyncio.run(futureclaw_narrative._call_glm("ignored prompt"))
+
+    assert len(batch.scenarios) == 4
+    assert {s.event for s in batch.scenarios} == {"cancer", "heart_attack", "disability", "death"}
+    for pair in batch.scenarios:
+        assert pair.narrative_en
+        assert pair.narrative_bm
+
+
+def test_generate_life_event_narratives_falls_back_on_glm_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Transport-level failure from `post_glm_with_retry` must surface as mock
+    narratives, not a 500. Guarantees the demo never breaks on Ilmu timeouts."""
+    monkeypatch.setattr(futureclaw_narrative.ai_config, "is_mock_mode", False, raising=True)
+
+    async def boom(*, url: str, headers: dict, payload: dict) -> str:  # noqa: ARG001
+        raise RuntimeError("simulated Ilmu gateway drop")
+
+    monkeypatch.setattr(futureclaw_narrative, "post_glm_with_retry", boom)
+
+    profile = _make_profile()
+    raw = simulate_life_events(
+        monthly_income_myr=profile.projected_income_monthly_myr,
+        coverage_limit_myr=profile.coverage_limit_myr,
+    )
+
+    pairs = asyncio.run(futureclaw_narrative.generate_life_event_narratives(profile, raw))
+
+    assert len(pairs) == 4
+    for narrative_en, narrative_bm in pairs:
+        assert "[fallback]" in narrative_en
+        assert "[fallback]" in narrative_bm

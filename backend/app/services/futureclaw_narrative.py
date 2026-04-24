@@ -1,9 +1,9 @@
 """FutureClaw narrative generation.
 
-Single-GLM-call batch narrative generator for the Life Event simulator. Uses
-`instructor` for typed Pydantic parsing and `tenacity` for retries. Falls back to
-deterministic mock narratives when GLM_API_KEY is unset or after retries exhaust,
-so the demo never 500s.
+Single-GLM-call batch narrative generator for the Life Event simulator. Uses the
+shared streaming `post_glm_with_retry` helper (which owns transport-level retries)
+and Pydantic for typed parsing. Falls back to deterministic mock narratives when
+GLM_API_KEY is unset or after retries exhaust, so the demo never 500s.
 """
 
 from __future__ import annotations
@@ -11,14 +11,9 @@ from __future__ import annotations
 import logging
 from typing import Iterable
 
-from pydantic import BaseModel, Field, ValidationError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-)
+from pydantic import BaseModel, Field
 
+from app.core.glm_client import extract_json_from_content, post_glm_with_retry
 from app.schemas import PolicyInput
 from app.services.ai_service import config as ai_config
 from app.services.simulation import LifeEventRaw
@@ -26,7 +21,6 @@ from app.services.simulation import LifeEventRaw
 
 logger = logging.getLogger(__name__)
 
-_GLM_TIMEOUT_SECONDS = 30.0
 _MAX_NARRATIVE_CHARS = 500  # matches LifeEventScenario.narrative_* schema limit
 
 
@@ -91,34 +85,40 @@ def _mock_batch(scenarios: list[LifeEventRaw], fallback_tag: str = "") -> list[t
     return output
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=6),
-    retry=retry_if_exception_type((ValidationError, ConnectionError, TimeoutError)),
-    reraise=True,
-)
 async def _call_glm(prompt: str) -> _NarrativeBatch:
-    import instructor
-    from openai import AsyncOpenAI
+    """Call GLM via the shared streaming entry point and parse into `_NarrativeBatch`.
 
-    client = instructor.from_openai(
-        AsyncOpenAI(
-            api_key=ai_config.api_key,
-            base_url=ai_config.api_base,
-            timeout=_GLM_TIMEOUT_SECONDS,
-        ),
-        mode=instructor.Mode.JSON,
-    )
-
-    return await client.chat.completions.create(
-        model=ai_config.model,
-        response_model=_NarrativeBatch,
-        messages=[
-            {"role": "system", "content": "You write concise, cited insurance narratives in JSON."},
+    Streaming is required because the Ilmu gateway drops non-streamed connections
+    past ~60s — see `backend/app/core/glm_client.py`. `post_glm_with_retry`
+    already handles transport-level retries with exponential backoff, so no extra
+    retry wrapper is layered here.
+    """
+    url = f"{ai_config.api_base.rstrip('/')}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {ai_config.api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": ai_config.model,
+        "temperature": 0.3,
+        "response_format": {"type": "json_object"},
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You write concise, cited insurance narratives in JSON. "
+                    "Return strict JSON only matching "
+                    '{"scenarios":[{"event":..., "narrative_en":..., "narrative_bm":...}]} '
+                    "with exactly 4 scenarios in the same order as the user prompt."
+                ),
+            },
             {"role": "user", "content": prompt},
         ],
-        max_retries=1,  # instructor-internal validation retry; outer tenacity handles network
-    )
+    }
+
+    content = await post_glm_with_retry(url=url, headers=headers, payload=payload)
+    parsed = extract_json_from_content(content)
+    return _NarrativeBatch.model_validate(parsed)
 
 
 async def generate_life_event_narratives(
