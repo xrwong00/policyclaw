@@ -237,7 +237,7 @@ export default function LifeEventSimulator({ policyId, profile }: LifeEventSimul
         <div className="futureclaw-status-row">
           <span className="futureclaw-status">
             {loading
-              ? "Generating narrative via GLM…"
+              ? "Generating narrative via gpt-5-mini…"
               : data
                 ? "Costs sourced from LIAM / PIAM / MTA"
                 : "Awaiting simulation"}

@@ -353,7 +353,7 @@ export default function AnalyzeWorkflow() {
       setResult(payload);
       setStatus("Analysis complete");
 
-      // Fire the 4th GLM call (ClawView Annotate) — runs in parallel with user review.
+      // Fire the 4th LLM call (ClawView Annotate) — runs in parallel with user review.
       const firstFile = selectedFiles[0];
       if (firstFile) {
         void fetchClawView(firstFile);
