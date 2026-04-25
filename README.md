@@ -4,6 +4,10 @@
 
 **Claw back control from policy confusion.**
 
+## Demo video
+
+Watch the walkthrough: https://drive.google.com/file/d/1NJu21LGwzB3xe-zgfo0HpAKU9OVR91ya/view?usp=sharing
+
 PolicyClaw is an AI decision-intelligence product that turns dense insurance PDFs into clear, evidence-backed recommendations. Upload a policy and in minutes see what you are paying for, where coverage overlaps, which rights you can act on, and whether to **Keep**, **Switch**, **Downgrade**, or **Dump**.
 
 Built for **UMHackathon 2026** — Domain 2: AI for Economic Empowerment & Decision Intelligence.
@@ -12,6 +16,7 @@ Built for **UMHackathon 2026** — Domain 2: AI for Economic Empowerment & Decis
 
 ## Table of contents
 
+- [Demo video](#demo-video)
 - [Problem](#problem)
 - [Solution](#solution)
 - [Target users & user stories](#target-users--user-stories)
