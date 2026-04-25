@@ -1,8 +1,8 @@
 """Unit tests for FutureClaw simulation + narrative services (F6, Wow Factor 2).
 
 These cover the pure-math layer that drives the Affordability and Life Event modes,
-plus the deterministic mock path of the GLM narrative service (so tests run without
-a GLM_API_KEY).
+plus the deterministic mock path of the LLM narrative service (so tests run without
+an OPENAI_API_KEY).
 """
 
 from __future__ import annotations
@@ -230,7 +230,7 @@ def test_narrative_mock_path_returns_four_tuples_within_schema_limit(monkeypatch
 def test_call_glm_parses_streaming_json_into_narrative_batch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With GLM_API_KEY set, `_call_glm` POSTs via `post_glm_with_retry` and parses
+    """With OPENAI_API_KEY set, `_call_glm` POSTs via `post_glm_with_retry` and parses
     the concatenated stream content into a `_NarrativeBatch`. Stub the streaming
     helper so the test stays offline."""
     canned = json.dumps(

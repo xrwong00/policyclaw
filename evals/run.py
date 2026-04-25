@@ -1,7 +1,7 @@
 """PolicyClaw eval harness — deterministic pass/fail checks against the 4
-GLM-call stages plus the simulation surface.
+LLM-call stages plus the simulation surface.
 
-Runs the service layer directly (not HTTP) with `GLM_API_KEY` unset so every
+Runs the service layer directly (not HTTP) with `OPENAI_API_KEY` unset so every
 stage falls into its deterministic mock/heuristic path. A judge can run this
 with no API key and still see a green-ish report, satisfying the hackathon
 "evals/" checklist without requiring a live billable key.
@@ -23,13 +23,13 @@ from pathlib import Path
 
 
 def _bootstrap_paths_and_mock_mode() -> None:
-    """Wipe GLM_API_KEY and extend sys.path before any app.* import.
+    """Wipe OPENAI_API_KEY and extend sys.path before any app.* import.
 
     Kept as a function (not top-level) so `import evals.run` from another
     harness or test doesn't silently delete the caller's env. The script
     entry point below calls this before anything else.
     """
-    os.environ.pop("GLM_API_KEY", None)
+    os.environ.pop("OPENAI_API_KEY", None)
     repo_root = Path(__file__).resolve().parents[1]
     backend = repo_root / "backend"
     if str(backend) not in sys.path:
@@ -299,8 +299,8 @@ async def main() -> int:
         "",
         f"- **Overall:** {passed}/{total} passed ({rate:.1f}%)",
         f"- **Threshold:** ≥ {PASS_THRESHOLD_PCT:.0f}% required",
-        f"- **Mode:** mock (GLM_API_KEY absent — stages exercise deterministic fallbacks)",
-        f"- **GLM config resolved:** model={ai_config.model}, base={ai_config.api_base}",
+        f"- **Mode:** mock (OPENAI_API_KEY absent — stages exercise deterministic fallbacks)",
+        f"- **LLM config resolved:** model={ai_config.model}, base={ai_config.api_base}",
         "",
         "## By stage",
         "",

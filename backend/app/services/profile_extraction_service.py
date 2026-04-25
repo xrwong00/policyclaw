@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-import os
 
 from app.core.glm_client import (
+    config as _config,
     extract_json_from_content as _extract_json_object,
     post_glm_with_retry as _post_with_retry,
 )
@@ -42,12 +42,12 @@ def _normalize_response(parsed: dict) -> ExtractPolicyProfileResponse:
 
 async def extract_policy_profiles(files: list[tuple[str, bytes]]) -> ExtractPolicyProfileResponse:
     """Extract normalized policy profile candidates from uploaded PDF files."""
-    api_key = os.getenv("GLM_API_KEY", "").strip()
-    api_base = os.getenv("GLM_API_BASE", "https://api.ilmu.ai/v1").strip()
-    model = os.getenv("GLM_MODEL", "ilmu-glm-5.1").strip() or "ilmu-glm-5.1"
+    api_key = _config.api_key
+    api_base = _config.api_base
+    model = _config.model
 
     if not api_key:
-        raise RuntimeError("GLM_API_KEY is not configured")
+        raise RuntimeError("OPENAI_API_KEY is not configured")
 
     all_chunks = []
     for source_name, content in files:

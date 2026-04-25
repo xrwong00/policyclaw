@@ -33,17 +33,17 @@ Likelihood × Impact, scale 1 (low) – 5 (critical). Score = L × I.
 
 | ID | Risk | L | I | Score | Mitigation | Owner |
 |---|---|---|---|---|---|---|
-| R1 | GLM API failure or rate-limit mid-demo | 3 | 5 | 15 | Streaming `post_glm_with_retry` with exponential-backoff retries (default 3 attempts / 120s read timeout; ClawView Annotate tightens to 2 attempts / 30s so it degrades within ~60s instead of hanging). Demo cache serves last successful payload. Recommend stage falls back to deterministic `generate_verdict`; Extract stage falls back to `_mock_policy_xray`; Score stage falls back to `_heuristic_health_score`; ClawView/FutureClaw fall back to heuristic/mock narratives. | shell |
+| R1 | LLM API failure or rate-limit mid-demo | 3 | 5 | 15 | Streaming `post_glm_with_retry` with exponential-backoff retries (default 3 attempts / 120s read timeout; ClawView Annotate tightens to 2 attempts / 30s so it degrades within ~60s instead of hanging). Demo cache serves last successful payload. Recommend stage falls back to deterministic `generate_verdict`; Extract stage falls back to `_mock_policy_xray`; Score stage falls back to `_heuristic_health_score`; ClawView/FutureClaw fall back to heuristic/mock narratives. | shell |
 | R2 | Wifi drops during the live demo | 2 | 5 | 10 | `backend/data/demo_cache/*.json` pre-warmed on 3 sample PDFs before the demo. Re-run serves cached payloads; UI shows "Served from demo cache" badge. | shell |
 | R3 | ClawView bbox misalignment on scanned / rasterized PDFs | 4 | 3 | 12 | `/v1/clawview` catches exceptions and returns a handled error. UI renders an inline message instead of blanking. A side-pane risk list is the planned fallback if bbox alignment breaks on demo day. | clawview |
-| R4 | Verdict inconsistency across reruns (F7 break) | 3 | 4 | 12 | Temperature 0.1 on Recommend. Demo cache makes repeated identical inputs fully deterministic. Covered by `backend/tests/test_verdict_consistency.py`. | shell |
-| R5 | Simulator jitter on underpowered laptops | 2 | 3 | 6 | Monte Carlo is pure numpy, 1000 runs complete in <50 ms on modern laptops. GLM narrative regenerates only on toggle, not every tick. Chart export is off the render path. | futureclaw |
+| R4 | Verdict inconsistency across reruns (F7 break) | 3 | 4 | 12 | Demo cache makes repeated identical inputs fully deterministic (the `gpt-5-mini` reasoning model rejects custom temperature, so determinism is enforced via the cache, not sampling settings). Covered by `backend/tests/test_verdict_consistency.py`. | shell |
+| R5 | Simulator jitter on underpowered laptops | 2 | 3 | 6 | Monte Carlo is pure numpy, 1000 runs complete in <50 ms on modern laptops. LLM narrative regenerates only on toggle, not every tick. Chart export is off the render path. | futureclaw |
 | R6 | Text-native PDF parse failure | 3 | 3 | 9 | `pdf_parser.parse_pdf_chunks` returns `[]` on non-PDF bytes; `clawview_service` handles empty-chunk case by surfacing a low-confidence mock response rather than 500. Covered by `test_extraction.py`. | clawview |
-| R7 | Ilmu endpoint returns malformed JSON | 2 | 4 | 8 | `_extract_json_from_content` tolerates code-fenced responses. Schema validation raises on invalid shapes, which the `analyze_policy_*` wrappers catch and route into the heuristic fallback with a LOW confidence band so the UI can nudge the user toward a human advisor. | shell |
-| R8 | `GLM_API_KEY` unset on judge's machine | 2 | 5 | 10 | Pipeline automatically enters mock / heuristic mode. All four stages produce valid outputs; confidence bands drop to LOW; reasons indicate the fallback. Demo still works end-to-end. | shell |
+| R7 | LLM endpoint returns malformed JSON | 2 | 4 | 8 | `_extract_json_from_content` tolerates code-fenced responses. Schema validation raises on invalid shapes, which the `analyze_policy_*` wrappers catch and route into the heuristic fallback with a LOW confidence band so the UI can nudge the user toward a human advisor. | shell |
+| R8 | `OPENAI_API_KEY` unset on judge's machine | 2 | 5 | 10 | Pipeline automatically enters mock / heuristic mode. All four stages produce valid outputs; confidence bands drop to LOW; reasons indicate the fallback. Demo still works end-to-end. | shell |
 | R9 | Scanned-only PDFs (no OCR text layer) | 2 | 3 | 6 | PyMuPDF returns zero text; parsing yields empty chunks; Annotate falls back to a low-confidence "limited annotation" response. OCR is deferred post-hackathon. | clawview |
 | R10 | AI hallucination passing as cited fact | 3 | 4 | 12 | Every `Reason` requires a `Citation` with source + quote + locator. Prompt explicitly forbids invented citations. Low confidence steers the UI to "consult a human advisor." Disclaimer on every recommendation screen. | shell |
-| R11 | Secret leakage in commit | 1 | 5 | 5 | `.env` in `.gitignore`. `backend/.env.example` is the only tracked env file. GLM key is read via `os.getenv`, never logged. | shell |
+| R11 | Secret leakage in commit | 1 | 5 | 5 | `.env` in `.gitignore`. `backend/.env.example` is the only tracked env file. The OpenAI key is read via `os.getenv`, never logged. | shell |
 
 ---
 
@@ -62,7 +62,7 @@ Likelihood × Impact, scale 1 (low) – 5 (critical). Score = L × I.
 
 | File | Tests | Purpose |
 |---|---|---|
-| `test_extraction.py` | 2 | `parse_pdf_chunks` handles valid PDFs; returns `[]` or raises on garbage bytes (never produces spurious chunks a GLM could over-interpret). |
+| `test_extraction.py` | 2 | `parse_pdf_chunks` handles valid PDFs; returns `[]` or raises on garbage bytes (never produces spurious chunks the LLM could over-interpret). |
 | `test_simulation.py` | 2 | `project_premiums` produces 3 scenarios × 10-year arrays. Pessimistic cumulative > realistic > optimistic. Breakpoint year is `None` or 1..10. Names chosen to avoid collision with `test_futureclaw.py`'s coverage of `monte_carlo_affordability` and `simulate_life_events`. |
 | `test_verdict_consistency.py` | 2 | F7 acceptance. Heuristic `generate_verdict` is byte-deterministic. `analyze_policy_verdict` (fallback mode) produces identical verdict + confidence across 3 reruns. |
 
@@ -99,7 +99,7 @@ Expect 19 tests green.
 | BNM medical inflation series | `backend/data/bnm_corpus/medical_inflation.json` | Historical anchor for FutureClaw Monte Carlo. |
 | Life-event cost medians | `backend/data/bnm_corpus/life_event_costs.json` | Seeds life-event scenarios with cited Malaysian cost data. |
 | Demo cache (gitignored in MVP; pre-warmed for demo) | `backend/data/demo_cache/*.json` | One file per (stage, canonical args) SHA-256. Protects demo against wifi drops and keeps verdicts deterministic. |
-| Mock-mode guarantees | `ai_service._mock_*`, `_heuristic_*` | Every public `ai_service.analyze_*` path has a non-GLM fallback — the pipeline never returns 500 from a GLM problem. |
+| Mock-mode guarantees | `ai_service._mock_*`, `_heuristic_*` | Every public `ai_service.analyze_*` path has a non-LLM fallback — the pipeline never returns 500 from an LLM problem. |
 
 ---
 

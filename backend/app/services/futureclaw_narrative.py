@@ -1,9 +1,10 @@
 """FutureClaw narrative generation.
 
-Single-GLM-call batch narrative generator for the Life Event simulator. Uses the
-shared streaming `post_glm_with_retry` helper (which owns transport-level retries)
-and Pydantic for typed parsing. Falls back to deterministic mock narratives when
-GLM_API_KEY is unset or after retries exhaust, so the demo never 500s.
+Single-LLM-call batch narrative generator for the Life Event simulator. Uses
+the shared streaming `post_glm_with_retry` helper (which owns transport-level
+retries) and Pydantic for typed parsing. Falls back to deterministic mock
+narratives when OPENAI_API_KEY is unset or after retries exhaust, so the demo
+never 500s.
 """
 
 from __future__ import annotations
@@ -86,12 +87,12 @@ def _mock_batch(scenarios: list[LifeEventRaw], fallback_tag: str = "") -> list[t
 
 
 async def _call_glm(prompt: str) -> _NarrativeBatch:
-    """Call GLM via the shared streaming entry point and parse into `_NarrativeBatch`.
+    """Call the LLM via the shared streaming entry point and parse into `_NarrativeBatch`.
 
-    Streaming is required because the Ilmu gateway drops non-streamed connections
-    past ~60s — see `backend/app/core/glm_client.py`. `post_glm_with_retry`
-    already handles transport-level retries with exponential backoff, so no extra
-    retry wrapper is layered here.
+    Streaming keeps long reasoning-model responses alive — see
+    `backend/app/core/glm_client.py`. `post_glm_with_retry` already handles
+    transport-level retries with exponential backoff, so no extra retry wrapper
+    is layered here.
     """
     url = f"{ai_config.api_base.rstrip('/')}/chat/completions"
     headers = {

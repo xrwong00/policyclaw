@@ -139,10 +139,10 @@ def test_bnm_detection_quiet_on_unrelated_clauses() -> None:
 def test_run_ai_analysis_produces_valid_response_in_mock_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """End-to-end smoke test of the 3-stage orchestrator with GLM disabled.
+    """End-to-end smoke test of the 3-stage orchestrator with the LLM disabled.
     Verifies the extended AnalyzeResponse fields are populated and the
     overlap_detected flag is honest (False, not len(files)>=2)."""
-    monkeypatch.setenv("GLM_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     import app.services.ai_service as ai_service_module
 
     ai_service_module.config = ai_service_module.AIServiceConfig()
@@ -169,7 +169,7 @@ def test_run_ai_analysis_handles_garbage_pdfs_gracefully(
 ) -> None:
     """A non-PDF upload must not crash the orchestrator — it should still
     produce a valid response using profile fields only."""
-    monkeypatch.setenv("GLM_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     import app.services.ai_service as ai_service_module
 
     ai_service_module.config = ai_service_module.AIServiceConfig()
@@ -185,7 +185,7 @@ def test_run_ai_analysis_handles_garbage_pdfs_gracefully(
 def test_run_ai_analysis_rejects_empty_file_list(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("GLM_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     import app.services.ai_service as ai_service_module
 
     ai_service_module.config = ai_service_module.AIServiceConfig()

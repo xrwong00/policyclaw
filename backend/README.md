@@ -47,7 +47,7 @@ Legacy / scaffolded:
 - `POST /v1/policies/upload`
 - `POST /v1/simulate/premium`
 - `POST /v1/verdict`
-- `POST /v1/ai/*` — F1/F2/F4/F7/F9/F11 scaffolds (return mock data unless `GLM_API_KEY` is set)
+- `POST /v1/ai/*` — F1/F2/F4/F7/F9/F11 scaffolds (return mock data unless `OPENAI_API_KEY` is set)
 
 Tests:
 

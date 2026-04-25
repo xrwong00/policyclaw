@@ -19,7 +19,7 @@ Built for **UMHackathon 2026** — Domain 2: AI for Economic Empowerment & Decis
 - [How it works](#how-it-works)
 - [Architecture](#architecture)
   - [System diagram](#system-diagram)
-  - [The four-call GLM pipeline](#the-four-call-glm-pipeline)
+  - [The four-call LLM pipeline](#the-four-call-llm-pipeline)
   - [Sequence view](#sequence-view)
   - [LLM as a service layer](#llm-as-a-service-layer)
   - [Dependency map](#dependency-map)
@@ -86,7 +86,7 @@ Color-coded clause risk (green / yellow / red) rendered directly over the upload
 ### FutureClaw — 10-year interactive simulator
 Monte Carlo simulation with two toggleable modes:
 - **Affordability:** premium vs income trajectory across optimistic / realistic / pessimistic scenario bands.
-- **Life Event:** four scenarios (Cancer, Heart Attack, Disability, Death of primary earner) with covered / co-pay / out-of-pocket breakdowns and GLM-generated narratives in **EN + BM**.
+- **Life Event:** four scenarios (Cancer, Heart Attack, Disability, Death of primary earner) with covered / co-pay / out-of-pocket breakdowns and LLM-generated narratives in **EN + BM**.
 
 ### Policy X-Ray
 Transforms complex policy text into a clear summary of plan type, premium, coverage limit, dates, and riders.
@@ -107,7 +107,7 @@ Outputs a direct action recommendation — **Keep**, **Switch**, **Downgrade**, 
 1. **Upload PDF(s):** User uploads one or more insurance policies.
 2. **Auto-extraction:** Backend extracts candidate policy profiles and auto-fills fields.
 3. **Human review:** User confirms or edits values (including required monthly income).
-4. **AI analysis:** Four GLM calls run against the uploaded content:
+4. **AI analysis:** Four LLM calls run against the uploaded content:
    - **Extract** — raw text → structured `Policy` model
    - **Annotate** — each clause → risk level + explanation (drives ClawView)
    - **Score** — sub-scores for Coverage, Affordability, Stability, Clarity (drives Health Score)
@@ -124,9 +124,9 @@ flowchart LR
     subgraph BE["FastAPI"]
         API["api/ routers"]
         SVC["services/"]
-        CORE["core/glm_client.py<br/>(single GLM seam)"]
+        CORE["core/glm_client.py<br/>(single LLM seam)"]
     end
-    ILMU[("Ilmu GLM<br/>ilmu-glm-5.1")]
+    ILMU[("OpenAI<br/>gpt-5-mini")]
 
     U --> Wizard --> API --> SVC --> CORE --> ILMU
     API -->|AnalyzeResponse · ClawViewResponse · FutureClaw| Viewer
@@ -136,7 +136,7 @@ flowchart LR
 
 ## Architecture
 
-PolicyClaw is a two-tier app: a Next.js 15 frontend talking to a FastAPI backend that orchestrates **four GLM calls** against an authorized Z.AI endpoint (`api.ilmu.ai/v1`, model `ilmu-glm-5.1`). For product scope see [`PRD.md`](PRD.md); for QA strategy see [`QATD.md`](QATD.md); for the full system architecture document (NFRs, capacity planning, failure modes) see [`SAD.md`](SAD.md).
+PolicyClaw is a two-tier app: a Next.js 15 frontend talking to a FastAPI backend that orchestrates **four LLM calls** against OpenAI (`api.openai.com/v1`, model `gpt-5-mini`). For product scope see [`PRD.md`](PRD.md); for QA strategy see [`QATD.md`](QATD.md); for the full system architecture document (NFRs, capacity planning, failure modes) see [`SAD.md`](SAD.md).
 
 ### System diagram
 
@@ -151,10 +151,10 @@ flowchart LR
     subgraph BE["FastAPI (backend/)"]
         API["api/ routers"]
         SVC["services/<br/>(analyze · clawview · futureclaw · ...)"]
-        CORE["core/glm_client.py<br/>(single GLM seam)"]
+        CORE["core/glm_client.py<br/>(single LLM seam)"]
         SCHEMA["schemas/<br/>(Pydantic v2 contracts)"]
     end
-    ILMU[("Ilmu GLM<br/>ilmu-glm-5.1")]
+    ILMU[("OpenAI<br/>gpt-5-mini")]
     BNM[("backend/data/<br/>bnm_corpus")]
 
     U --> Upload
@@ -170,9 +170,9 @@ flowchart LR
     SCHEMA -.validates.- SVC
 ```
 
-**Key property:** every GLM request in the system passes through `backend/app/core/glm_client.py`. Swapping providers or adjusting retry behavior is a one-file change.
+**Key property:** every LLM request in the system passes through `backend/app/core/glm_client.py`. Swapping providers or adjusting retry behavior is a one-file change.
 
-### The four-call GLM pipeline
+### The four-call LLM pipeline
 
 `/api/analyze` runs the first three calls sequentially. The fourth (`Annotate` for ClawView) is served by `/v1/clawview` and fired by the frontend in parallel with user review of the verdict, so the perceived end-to-end latency target of **≤15s** is achievable.
 
@@ -185,6 +185,8 @@ flowchart LR
 
 Each call is wrapped in a streamed POST with exponential-backoff retry (`core.glm_client.post_glm_with_retry` — default 3 attempts / 120s read timeout, overridable per call: ClawView's Annotate uses 2 attempts / 30s so it falls back to the heuristic mock fast) and a per-call `demo_cache` read-through so identical inputs yield identical outputs (F7 verdict-consistency requirement).
 
+> The `Temp` column above shows what the caller requests, but `gpt-5-mini` (and other gpt-5 / o-series reasoning models) reject custom `temperature`. The shared client strips it and injects `reasoning_effort: "low"` automatically (`backend/app/core/glm_client.py:_adapt_payload_for_provider`).
+
 ### Sequence view
 
 ```mermaid
@@ -192,7 +194,7 @@ sequenceDiagram
     actor U as User
     participant FE as Next.js
     participant BE as FastAPI
-    participant GLM as Ilmu GLM
+    participant GLM as OpenAI gpt-5-mini
     participant C as demo_cache
 
     U->>FE: Upload PDF + profile
@@ -230,24 +232,25 @@ sequenceDiagram
 
 ### LLM as a service layer
 
-The core design rule: **feature code never talks to the GLM HTTP endpoint directly.** It calls a thin module in `app.core.glm_client`:
+The core design rule: **feature code never talks to the LLM HTTP endpoint directly.** It calls a thin module in `app.core.glm_client`:
 
 ```text
 backend/app/core/glm_client.py
-├── load_local_env()              # loads backend/.env idempotently
-├── AIServiceConfig               # resolves GLM_API_KEY / GLM_API_BASE / GLM_MODEL
-├── config: AIServiceConfig       # process-wide singleton
-├── confidence_band_from_score()  # shared scorer → HIGH / MEDIUM / LOW
-├── extract_json_from_content()   # tolerates ```json fences
-├── post_glm_with_retry()         # streamed POST w/ backoff retries (per-call timeout + attempts)
-└── GLMClient                     # optional object handle (chat_url, headers, complete_json)
+├── load_local_env()                 # loads backend/.env idempotently
+├── AIServiceConfig                  # resolves OPENAI_API_KEY / OPENAI_API_BASE / OPENAI_MODEL
+├── config: AIServiceConfig          # process-wide singleton
+├── confidence_band_from_score()     # shared scorer → HIGH / MEDIUM / LOW
+├── extract_json_from_content()      # tolerates ```json fences
+├── _adapt_payload_for_provider()    # strips temperature/top_p, injects reasoning_effort for gpt-5/o1/o3
+├── post_glm_with_retry()            # streamed POST w/ backoff retries (per-call timeout + attempts)
+└── GLMClient                        # optional object handle (chat_url, headers, complete_json)
 ```
 
 Why this matters:
 
-1. **Single point of change** — if Ilmu moves endpoints, rotates auth, or the hackathon organizers approve a new Z.AI model, one file updates.
+1. **Single point of change** — when the project swapped providers from Ilmu GLM to OpenAI `gpt-5-mini`, only this file (plus env-var renames in services) needed editing. Future swaps are equally cheap.
 2. **Testable seam** — tests swap `ai_service.config = AIServiceConfig()` after setting env vars (see `backend/tests/test_orchestrator.py`), and every feature path respects the change.
-3. **Mock mode is free** — when `GLM_API_KEY` is absent, `config.is_mock_mode` is true and every service falls back to its deterministic mock. The demo flow runs end-to-end without a live key.
+3. **Mock mode is free** — when `OPENAI_API_KEY` is absent, `config.is_mock_mode` is true and every service falls back to its deterministic mock. The demo flow runs end-to-end without a live key.
 4. **Feature prompts stay with the feature** — ClawView's prompt lives in `services/clawview_service.py`, the verdict prompt in `services/ai_service.py`. The client doesn't grow a god-method.
 
 ### Dependency map
@@ -260,7 +263,7 @@ flowchart TD
     CORE["backend/app/core/<br/>glm_client.py"]
     SCHEMA["backend/app/schemas/<br/>common · policy · analyze ·<br/>clawview · futureclaw · legacy_ai"]
     EXT["External: pypdf · PyMuPDF · numpy ·<br/>httpx · tenacity · instructor"]
-    ILMU[("Ilmu GLM")]
+    ILMU[("OpenAI gpt-5-mini")]
     BNM[("backend/data/bnm_corpus/")]
 
     FE -->|HTTP| API
@@ -282,12 +285,12 @@ The arrow direction is strict: `api → services → core`. `schemas` is importe
 |----------------------------------------|----------------------------------------------------------|
 | `backend/app/main.py`                  | FastAPI app instance + CORS + `include_router` calls     |
 | `backend/app/api/`                     | HTTP surface; one module per feature concern             |
-| `backend/app/services/`                | Business logic; owns GLM prompts and fallbacks           |
-| `backend/app/core/glm_client.py`       | The only place that opens an `httpx.AsyncClient` to Ilmu |
+| `backend/app/services/`                | Business logic; owns LLM prompts and fallbacks           |
+| `backend/app/core/glm_client.py`       | The only place that opens an `httpx.AsyncClient` to the LLM provider |
 | `backend/app/schemas/`                 | Pydantic v2 request/response contracts                   |
 | `backend/data/bnm_corpus/`             | Static BNM / LIAM / PIAM / MTA cost + rights corpus      |
 | `backend/tests/`                       | 38 pytest tests (unit + orchestrator + verdict consistency) |
-| `evals/`                               | JSON-driven pass/fail harness for the 4 GLM stages       |
+| `evals/`                               | JSON-driven pass/fail harness for the 4 LLM stages       |
 | `frontend/app/analyze/`                | Upload wizard + results UI                               |
 | `docs/erd.md`                          | Mermaid ERD of the Pydantic data model                   |
 
@@ -313,7 +316,7 @@ Shared enums (`PolicyType`, `ConfidenceBand`, `VerdictLabel`, `RiskLevel`, `Life
 - **Frontend:** Next.js 15.3.2 (App Router), React 19.0.0, TypeScript 5.8.3, Tailwind CSS 4.2.4, Recharts 3.8.1, Framer Motion 12.38.0, Zustand 5.0.12, TanStack Query 5.100.1, `@react-pdf-viewer/core` 3.12.0, jsPDF 2.5.2, pdfjs-dist 3.11.174.
 - **Backend:** Python 3.10+ (3.12 recommended and used by CI), FastAPI 0.115.12, Pydantic 2.11.4, numpy 2.2.5, scipy 1.16.1, httpx 0.28.1, tenacity 9.1.2, instructor 1.15.1.
 - **PDF processing:** pypdf 5.4.0 for text extraction, PyMuPDF (fitz) 1.26.4 for per-clause bounding boxes used by ClawView.
-- **LLM:** Z.AI GLM via Ilmu (`ilmu-glm-5.1` at `https://api.ilmu.ai/v1`) — an authorized Z.AI endpoint confirmed with hackathon organizers, which satisfies the mandatory-Z.AI eligibility rule.
+- **LLM:** OpenAI `gpt-5-mini` at `https://api.openai.com/v1`. The project initially targeted Z.AI GLM via Ilmu (`api.ilmu.ai` / `ilmu-glm-5.1`) to satisfy the rubric's mandatory-Z.AI rule, but the Ilmu gateway proved unstable and the organizers waived the Z.AI requirement for this submission.
 - **Storage:** in-memory backend state + browser `localStorage` for MVP; file-based `demo_cache` for deterministic replay. Supabase (Postgres + Auth + Storage + pgvector) is a post-MVP target, explicitly flagged in PRD §9.2 / §10.3 as *not MVP-gating*.
 - **Testing:** pytest 8.3.4 + pytest-asyncio 0.25.2 on the backend; `next lint` + `tsc` on the frontend.
 - **CI:** GitHub Actions on every push / PR — backend smoke-import + pytest, frontend install + build; ruff and ESLint run informationally. See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -325,11 +328,11 @@ Shared enums (`PolicyType`, `ConfidenceBand`, `VerdictLabel`, `RiskLevel`, `Life
 - [PRD.md](PRD.md) — product requirements and scope (authoritative spec)
 - [SAD.md](SAD.md) — system architecture document
 - [QATD.md](QATD.md) — QA and test design document
-- [AI_INTEGRATION_GUIDE.md](AI_INTEGRATION_GUIDE.md) — how to wire GLM-backed endpoints
+- [AI_INTEGRATION_GUIDE.md](AI_INTEGRATION_GUIDE.md) — how to wire LLM-backed endpoints
 - [docs/erd.md](docs/erd.md) — Mermaid ERD of the Pydantic data model
 - [backend/](backend) — FastAPI service (`api/` routers, `services/`, `core/glm_client.py`, `schemas/`)
 - [frontend/](frontend) — Next.js product interface
-- [evals/](evals) — JSON-driven GLM pipeline eval harness (`python evals/run.py`)
+- [evals/](evals) — JSON-driven LLM pipeline eval harness (`python evals/run.py`)
 - [Makefile](Makefile) — judge- and CI-friendly command surface
 - [.github/workflows/ci.yml](.github/workflows/ci.yml) — CI pipeline (pytest + frontend build on every push/PR)
 
@@ -365,10 +368,10 @@ Copy the committed template and fill in your key:
 
 ```bash
 cp backend/.env.example backend/.env
-# edit backend/.env and set GLM_API_KEY=...
+# edit backend/.env and set OPENAI_API_KEY=...
 ```
 
-Without `GLM_API_KEY`, the backend falls back to mock GLM responses — the flow still runs end-to-end but outputs are synthetic. `backend/.env` is gitignored; `backend/.env.example` is the committed template.
+Without `OPENAI_API_KEY`, the backend falls back to mock LLM responses — the flow still runs end-to-end but outputs are synthetic. `backend/.env` is gitignored; `backend/.env.example` is the committed template.
 
 ### 3) Run backend
 
@@ -408,7 +411,7 @@ npm run dev
 
 - `POST /v1/clawview` — ClawView clause-level risk overlay (drives the PDF highlight layer)
 - `POST /v1/simulate/affordability` — FutureClaw Monte Carlo premium projection, 3 scenario bands over 10 years
-- `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with GLM narratives (EN + BM)
+- `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with LLM-generated narratives (EN + BM)
 
 ### Scaffolded / legacy
 
@@ -431,7 +434,7 @@ The root [`Makefile`](Makefile) exposes the commands judges / CI should run:
 | `make dev-frontend`| Start Next.js on `127.0.0.1:3000` with hot reload                      |
 | `make test`        | `pytest backend/tests/ -q`                                             |
 | `make lint`        | `ruff check backend/` + `npm run lint --prefix frontend`               |
-| `make evals`       | `python evals/run.py` — 12-case GLM-pipeline harness                   |
+| `make evals`       | `python evals/run.py` — 12-case LLM-pipeline harness                   |
 | `make build`       | `npm run build --prefix frontend`                                      |
 | `make ci-local`    | test + lint + build + evals (mirrors `.github/workflows/ci.yml`)       |
 
@@ -456,9 +459,9 @@ Three layers of automated verification run on every push and PR.
 | `test_futureclaw.py`           |    15 | Affordability scenario ordering, narrative batch, confidence, mocks    |
 | `test_clawview.py`             |     3 | Clause annotation, risk-count invariants, confidence scoring           |
 
-### 2. GLM pipeline evals
+### 2. LLM pipeline evals
 
-A **12-case JSON-driven eval harness** in [`evals/`](evals) covers all four GLM stages (Extract, Score, Recommend, plus the two simulators). Cases live in `evals/cases.json`; results write to `evals/results.md`. The harness intentionally runs with `GLM_API_KEY` unset so the deterministic mock paths execute — this means a failing eval always points to a logic regression, not an upstream GLM flake. Exit 0 if ≥85% of cases pass, else 1.
+A **12-case JSON-driven eval harness** in [`evals/`](evals) covers all four LLM stages (Extract, Score, Recommend, plus the two simulators). Cases live in `evals/cases.json`; results write to `evals/results.md`. The harness intentionally runs with `OPENAI_API_KEY` unset so the deterministic mock paths execute — this means a failing eval always points to a logic regression, not an upstream LLM flake. Exit 0 if ≥85% of cases pass, else 1.
 
 Run with `python evals/run.py` or `make evals`.
 
@@ -483,7 +486,7 @@ Coverage distribution:
 
 ### Determinism guarantee
 
-`backend/app/services/demo_cache.py` provides a SHA-256-keyed read-through cache for each GLM stage. When `demo_cache_enabled`, identical inputs always produce identical outputs — this is what lets F7 (verdict consistency across 3 reruns) pass on judged hardware regardless of upstream latency or retries.
+`backend/app/services/demo_cache.py` provides a SHA-256-keyed read-through cache for each LLM stage. When `demo_cache_enabled`, identical inputs always produce identical outputs — this is what lets F7 (verdict consistency across 3 reruns) pass on judged hardware regardless of upstream latency or retries.
 
 ---
 
@@ -491,12 +494,12 @@ Coverage distribution:
 
 | Risk                                             | Mitigation                                                                                                                                                                                    |
 |--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| GLM latency spike or gateway outage              | `post_glm_with_retry` streams SSE with exponential-backoff retry; per-call timeout overrides (ClawView: 2 attempts / 30s); every service has a deterministic heuristic fallback (`_mock_*`).  |
+| LLM latency spike or gateway outage              | `post_glm_with_retry` streams SSE with exponential-backoff retry; per-call timeout overrides (ClawView: 2 attempts / 30s); every service has a deterministic heuristic fallback (`_mock_*`).  |
 | Hallucinated claims from the LLM                 | P2 "explain or don't say it" — every AI output carries a citation back to the source clause; every output has a 0–100% confidence score; low-confidence branches route the user to a human advisor. |
 | PDF parsing edge cases (scanned docs, tables)    | PyMuPDF is used for bbox-critical ClawView paths; pypdf is the text-only fallback; mock mode ships with pre-rendered fixtures so scanned PDFs never block the demo flow.                     |
-| Live GLM failure during the judged demo          | `demo_cache` read-through guarantees identical inputs → identical outputs; mock mode (`GLM_API_KEY` unset) runs the full end-to-end flow with synthetic but consistent outputs.               |
-| 24-hour solo-dev scope creep                     | PRD §5 locks the 4-GLM-call pipeline and the P0/P1 feature table; anything outside is explicitly post-MVP (Supabase persistence, auth, voice, additional languages).                           |
-| Hackathon Z.AI eligibility                       | Ilmu endpoint (`api.ilmu.ai` / `ilmu-glm-5.1`) is an authorized Z.AI endpoint confirmed with organizers; the `glm_client.py` seam means a model/base swap is a one-line config change.        |
+| Live LLM failure during the judged demo          | `demo_cache` read-through guarantees identical inputs → identical outputs; mock mode (`OPENAI_API_KEY` unset) runs the full end-to-end flow with synthetic but consistent outputs.            |
+| 24-hour solo-dev scope creep                     | PRD §5 locks the 4-LLM-call pipeline and the P0/P1 feature table; anything outside is explicitly post-MVP (Supabase persistence, auth, voice, additional languages).                           |
+| Hackathon Z.AI eligibility                       | The original Z.AI mandate was waived by the organizers after the Ilmu gateway proved unstable. The `glm_client.py` seam means future provider swaps remain a one-file config change.          |
 | Regulatory / advice liability                    | Every recommendation screen carries a `disclaimer` field enforced in `PolicyVerdict`; product copy repeats "decision support, not licensed financial advice."                                 |
 
 See [`QATD.md`](QATD.md) for the full risk register with likelihood × impact scoring.
@@ -514,9 +517,9 @@ PolicyClaw converts insurance from a trust-heavy black box into a transparent de
 - [`PRD.md`](PRD.md) — product requirements, scope, NFRs (authoritative spec)
 - [`SAD.md`](SAD.md) — system architecture document (NFRs, capacity, failure modes)
 - [`QATD.md`](QATD.md) — quality assurance & test design, full risk register
-- [`AI_INTEGRATION_GUIDE.md`](AI_INTEGRATION_GUIDE.md) — how to wire real GLM responses into the scaffolded `/v1/ai/*` family
+- [`AI_INTEGRATION_GUIDE.md`](AI_INTEGRATION_GUIDE.md) — how to wire real LLM responses into the scaffolded `/v1/ai/*` family
 - [`docs/erd.md`](docs/erd.md) — entity-relationship diagram of the Pydantic data model
-- [`evals/README.md`](evals/README.md) — how to run the GLM eval harness
+- [`evals/README.md`](evals/README.md) — how to run the LLM eval harness
 
 ---
 

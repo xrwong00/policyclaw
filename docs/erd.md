@@ -1,8 +1,8 @@
 # PolicyClaw — Data Model (ERD)
 
 Entity-relationship view of the Pydantic v2 schemas that flow between the
-frontend, FastAPI backend, and the Ilmu GLM calls. These are the contracts
-validated at every API boundary.
+frontend, FastAPI backend, and the LLM calls (OpenAI `gpt-5-mini`). These
+are the contracts validated at every API boundary.
 
 Source files: [`backend/app/schemas/`](../backend/app/schemas/).
 
@@ -102,10 +102,10 @@ classDiagram
       +str excerpt
     }
 
-    PolicyInput --> PolicyXRayResponse : Extract (GLM 1)
-    PolicyXRayResponse --> HealthScore : Score (GLM 3)
-    PolicyXRayResponse --> PolicyVerdict : Recommend (GLM 4)
-    HealthScore --> PolicyVerdict : Recommend (GLM 4)
+    PolicyInput --> PolicyXRayResponse : Extract (LLM 1)
+    PolicyXRayResponse --> HealthScore : Score (LLM 3)
+    PolicyXRayResponse --> PolicyVerdict : Recommend (LLM 4)
+    HealthScore --> PolicyVerdict : Recommend (LLM 4)
     PolicyXRayResponse "1" *-- "1..20" PolicyClause
     PolicyVerdict "1" *-- "2..5" Reason
     Reason "1" *-- "1" Citation

@@ -1,6 +1,6 @@
 # PolicyClaw AI Features — Integration Guide
 
-This document describes how to use and configure the AI-powered features in PolicyClaw. The F1/F2/F7/F9/F11 entries below are the original scaffolded endpoints that still return mock data unless `GLM_API_KEY` is set; the Wow-Factor entries are the two fully-shipped demos.
+This document describes how to use and configure the AI-powered features in PolicyClaw. The F1/F2/F7/F9/F11 entries below are the original scaffolded endpoints that still return mock data unless `OPENAI_API_KEY` is set; the Wow-Factor entries are the two fully-shipped demos.
 
 > **Live feature status is tracked in `CLAUDE.md`.** This guide focuses on how to wire the `/v1/ai/*` scaffolds and demo flows.
 
@@ -31,7 +31,7 @@ All features are **production-ready scaffolds** with:
 - ✅ Environment-based configuration
 - ✅ CSS styling and responsive design
 
-**Currently, all features return mock data.** This is intentional — the system runs without an API key, uses realistic fallback responses, and is ready to be "turned on" when you have your Z.AI GLM API key.
+**Currently, all features return mock data.** This is intentional — the system runs without an API key, uses realistic fallback responses, and is ready to be "turned on" when you have your OpenAI API key.
 
 ## Running the System Now
 
@@ -61,7 +61,7 @@ Visit `http://localhost:3001` to see the landing page with all components.
 
 ## Adding Your AI API Key
 
-When you receive your **Z.AI GLM-4.6 API key**, follow these steps:
+When you have your **OpenAI API key**, follow these steps:
 
 ### 1. Create Backend `.env` File
 
@@ -69,9 +69,9 @@ In `backend/` directory, create a `.env` file (or copy from `.env.example`):
 
 ```bash
 # backend/.env
-GLM_API_KEY=your-z-ai-glm-api-key-here
-GLM_API_BASE=https://open.bigmodel.cn/api/paas/v4
-GLM_MODEL=glm-4-flash
+OPENAI_API_KEY=your-openai-api-key-here
+OPENAI_API_BASE=https://api.openai.com/v1
+OPENAI_MODEL=gpt-5-mini
 DEBUG=false
 ```
 
@@ -80,37 +80,41 @@ DEBUG=false
 ### 2. Restart Backend
 
 ```bash
-# Backend will now load GLM_API_KEY from .env
+# Backend will now load OPENAI_API_KEY from .env
 uvicorn app.main:app --reload
 ```
 
-Check AI status: `GET http://127.0.0.1:8000/v1/ai/status` — should now show `"mode": "GLM API"`.
+Check AI status: `GET http://127.0.0.1:8000/v1/ai/status` — should now show `"mode": "OpenAI API"`.
 
-### 3. Implement GLM Integration
+### 3. Implement LLM Integration
 
-The backend is ready for GLM integration. The template functions are in:
+The backend is ready for live LLM integration. The template functions are in:
 
 ```
 backend/app/services/ai_service.py
 ```
 
-Each feature has a TODO marker where you'll add GLM calls:
+Each feature has a TODO marker where you'll add LLM calls:
 
 ```python
 async def analyze_policy_xray(policy_input, policy_id):
     if config.is_mock_mode:
         return _mock_policy_xray(...)  # Current behavior
 
-    # TODO: Call GLM API when key is available
+    # TODO: Call the LLM when key is available
     # return await _call_glm_policy_xray(...)
     raise NotImplementedError()
 ```
 
-Replace the `TODO` sections with actual GLM calls. Every live GLM call in this
+Replace the `TODO` sections with actual LLM calls. Every live LLM call in this
 repo routes through the shared streaming helper in `backend/app/core/glm_client.py`
-— streaming is required because Ilmu's gateway closes non-streamed connections past
-~60s, and the helper owns the transport retry + read timeout (default 3 attempts / 120s; callers can override per call — ClawView uses `attempts=2, read_timeout_s=30.0` so Annotate degrades fast). Mirror
-this pattern (see `ai_service._call_glm_policy_xray` for the canonical example):
+— streaming keeps long reasoning-model responses healthy, and the helper owns the
+transport retry + read timeout (default 3 attempts / 120s; callers can override per
+call — ClawView uses `attempts=2, read_timeout_s=30.0` so Annotate degrades fast).
+The helper also strips `temperature` / `top_p` and injects `reasoning_effort: "low"`
+automatically when the configured model is gpt-5 / o1 / o3, so callers can keep
+passing the same payload shape they always have. Mirror this pattern (see
+`ai_service._call_glm_policy_xray` for the canonical example):
 
 ```python
 from app.core.glm_client import (
@@ -121,7 +125,7 @@ from app.core.glm_client import (
 
 
 async def _call_glm_policy_xray(policy_input, policy_id):
-    """Call GLM to analyze a policy document."""
+    """Call the LLM to analyze a policy document."""
     url = f"{config.api_base.rstrip('/')}/chat/completions"
     headers = {
         "Authorization": f"Bearer {config.api_key}",
@@ -227,9 +231,9 @@ GET /v1/ai/status
 **Response:**
 ```json
 {
-  "ai_enabled": false,  // or true if GLM_API_KEY is set
-  "mode": "Mock Data",  // or "GLM API"
-  "model": "N/A",       // or "glm-4-flash"
+  "ai_enabled": false,  // or true if OPENAI_API_KEY is set
+  "mode": "Mock Data",  // or "OpenAI API"
+  "model": "N/A",       // or "gpt-5-mini"
   "features": [...]
 }
 ```
@@ -267,7 +271,7 @@ Currently, calling any endpoint returns realistic mock data that matches the ful
 - Specific BNM circular references
 - 82% confidence score (HIGH band)
 
-These mocks are intentional and production-ready. When you add the API key, replace the `_mock_*` functions with real GLM calls.
+These mocks are intentional and production-ready. When you add the API key, replace the `_mock_*` functions with real LLM calls.
 
 ## Testing
 
@@ -295,24 +299,24 @@ curl http://127.0.0.1:8000/v1/ai/status
 
 ## Troubleshooting
 
-**Q: AI status shows "Mock Data" even after adding GLM_API_KEY**
+**Q: AI status shows "Mock Data" even after adding OPENAI_API_KEY**
 - A: Make sure you restarted the backend after creating `.env`. The key is loaded at startup.
 
 **Q: Getting 500 error from an AI endpoint**
-- A: Check backend logs. Mock mode should never error. If you're in GLM mode, verify API key and endpoint are correct.
+- A: Check backend logs. Mock mode should never error. If you're in OpenAI mode, verify API key and endpoint are correct.
 
 **Q: Frontend components don't load**
 - A: Check browser console for network errors. Verify `NEXT_PUBLIC_API_BASE_URL` env var points to correct backend (default: `http://127.0.0.1:8000`).
 
-**Q: How do I test GLM integration without the real key?**
-- A: The current mocks are perfect for this. Build your frontend flows against mocks, then swap the backend to call GLM when the key arrives.
+**Q: How do I test the LLM integration without the real key?**
+- A: The current mocks are perfect for this. Build your frontend flows against mocks, then swap the backend to call OpenAI when the key arrives.
 
 ## Next Steps
 
 1. **Today**: Run the system with mock data (no API key needed)
-2. **When you get the Z.AI key**: Add it to `.env` in the backend
-3. **Week 2**: Implement GLM calls by replacing `TODO` markers in `ai_service.py`
-4. **Week 3**: Test each feature end-to-end with real GLM
+2. **When you have the OpenAI key**: Add it to `.env` in the backend
+3. **Week 2**: Implement live LLM calls by replacing `TODO` markers in `ai_service.py`
+4. **Week 3**: Test each feature end-to-end with the live model
 5. **Week 4**: Polish and optimization
 
 ## File Structure
@@ -329,7 +333,7 @@ policyclaw/
 │   │   │   ├── futureclaw.py               # /v1/simulate/* (F6 / Wow 2)
 │   │   │   └── legacy.py                   # /v1/ai/*, /v1/policies/upload, /v1/verdict
 │   │   ├── core/
-│   │   │   └── glm_client.py               # Single GLM entry point (env, config, retry)
+│   │   │   └── glm_client.py               # Single LLM entry point (env, config, retry)
 │   │   ├── schemas/                        # Pydantic contracts split by domain
 │   │   │   ├── common.py                   # Citation, ConfidenceBand, PolicyType, ...
 │   │   │   ├── policy.py                   # PolicyInput, PolicyClause, ...
@@ -338,18 +342,18 @@ policyclaw/
 │   │   │   ├── futureclaw.py               # FutureClaw sim shapes
 │   │   │   └── legacy_ai.py                # /v1/ai/* F1/F2/F4/F7/F9/F11 shapes
 │   │   └── services/
-│   │       ├── ai_service.py               # GLM prompts + mock fallback for /v1/ai/*
+│   │       ├── ai_service.py               # LLM prompts + mock fallback for /v1/ai/*
 │   │       ├── analyze_service.py          # /api/analyze orchestration
 │   │       ├── profile_extraction_service.py
 │   │       ├── clawview_service.py         # F4 / Wow 1
-│   │       ├── futureclaw_narrative.py     # F6 / Wow 2 GLM narrative
+│   │       ├── futureclaw_narrative.py     # F6 / Wow 2 LLM narrative
 │   │       ├── simulation.py               # F6 Monte Carlo + legacy premium projection
 │   │       ├── pdf_parser.py               # PyMuPDF extraction
 │   │       └── rag.py, verdict.py
 │   ├── data/bnm_corpus/                    # BNM inflation + LIAM/PIAM/MTA cost citations
 │   ├── tests/                              # pytest suite (run: pytest backend/tests/ -q)
-│   └── .env.example                        # Template for .env (GLM_API_KEY lives here)
-├── evals/                                  # JSON-driven GLM pipeline eval harness
+│   └── .env.example                        # Template for .env (OPENAI_API_KEY lives here)
+├── evals/                                  # JSON-driven LLM pipeline eval harness
 └── frontend/
     └── app/
         ├── analyze/
