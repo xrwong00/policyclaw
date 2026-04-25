@@ -77,6 +77,7 @@ classDiagram
       +str source
       +str quote
       +str locator
+      +str url
     }
 
     class AnalyzeResponse {
