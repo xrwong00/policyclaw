@@ -171,6 +171,7 @@ def _raw(event: LifeEvent, total: float, covered: float) -> LifeEventRaw:
         citation_source="x",
         citation_quote="x",
         citation_locator="x",
+        citation_url=None,
     )
 
 

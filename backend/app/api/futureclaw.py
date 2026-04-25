@@ -105,6 +105,7 @@ async def simulate_life_event(
                     source=raw_item.citation_source,
                     quote=raw_item.citation_quote,
                     locator=raw_item.citation_locator,
+                    url=raw_item.citation_url,
                 )
             )
             seen_sources.add(raw_item.citation_source)
