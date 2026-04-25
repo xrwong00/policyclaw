@@ -1,0 +1,145 @@
+@page {
+  size: A4;
+  margin: 18mm 16mm 18mm 16mm;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.5;
+  color: #1f2937;
+  max-width: 100%;
+}
+
+h1 {
+  font-size: 22pt;
+  border-bottom: 2px solid #1f2937;
+  padding-bottom: 6px;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+h2 {
+  font-size: 16pt;
+  border-bottom: 1px solid #d1d5db;
+  padding-bottom: 4px;
+  margin-top: 28px;
+  margin-bottom: 12px;
+  page-break-after: avoid;
+}
+
+h3 {
+  font-size: 13pt;
+  margin-top: 22px;
+  margin-bottom: 8px;
+  page-break-after: avoid;
+}
+
+h4 {
+  font-size: 11.5pt;
+  margin-top: 18px;
+  margin-bottom: 6px;
+  page-break-after: avoid;
+}
+
+p {
+  margin: 0 0 9px 0;
+}
+
+ul, ol {
+  margin: 0 0 9px 0;
+  padding-left: 22px;
+}
+
+li {
+  margin: 2px 0;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 10px 0 14px 0;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+
+th, td {
+  border: 1px solid #d1d5db;
+  padding: 5px 7px;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  background: #f3f4f6;
+  font-weight: 600;
+}
+
+code {
+  font-family: "SF Mono", Consolas, "Courier New", monospace;
+  font-size: 9pt;
+  background: #f3f4f6;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+pre {
+  font-family: "SF Mono", Consolas, "Courier New", monospace;
+  font-size: 8.5pt;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  page-break-inside: avoid;
+  white-space: pre-wrap;
+  line-height: 1.35;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+}
+
+blockquote {
+  border-left: 3px solid #d1d5db;
+  padding-left: 12px;
+  color: #4b5563;
+  margin: 10px 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 12px auto;
+  page-break-inside: avoid;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 24px 0;
+}
+
+a {
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+strong {
+  color: #111827;
+}
+
+/* Title-page table */
+body > table:first-of-type {
+  width: 70%;
+  margin-left: 0;
+  font-size: 10pt;
+}
+
+body > table:first-of-type th,
+body > table:first-of-type td {
+  background: #f9fafb;
+}
