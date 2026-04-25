@@ -172,6 +172,7 @@ class LifeEventRaw:
     citation_source: str
     citation_quote: str
     citation_locator: str
+    citation_url: str | None
 
 
 def _sample_event_cost(rng: np.random.Generator, median: float, stdev: float, runs: int) -> float:
@@ -224,6 +225,7 @@ def simulate_life_events(
                 citation_source=citation["source"],
                 citation_quote=citation["quote"],
                 citation_locator=citation["locator"],
+                citation_url=cfg.get("citation_url"),
             )
         )
     return results

@@ -35,6 +35,7 @@ interface LifeEventCitation {
   source: string;
   quote: string;
   locator: string;
+  url?: string | null;
 }
 
 interface LifeEventSimulationResponse {
@@ -278,7 +279,15 @@ export default function LifeEventSimulator({ policyId, profile }: LifeEventSimul
             <ul>
               {data.data_citations.map((c, i) => (
                 <li key={`${c.source}-${i}`}>
-                  <strong>{c.source}</strong> — {c.locator}
+                  {c.url ? (
+                    <a href={c.url} target="_blank" rel="noopener noreferrer">
+                      <strong>{c.source}</strong>
+                    </a>
+                  ) : (
+                    <strong>{c.source}</strong>
+                  )}
+                  {" — "}
+                  {c.locator}
                   <span className="futureclaw-citations-quote">&ldquo;{c.quote}&rdquo;</span>
                 </li>
               ))}

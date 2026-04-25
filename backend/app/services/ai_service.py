@@ -234,9 +234,9 @@ async def _call_glm_policy_verdict(
                 "title": "string (prefix with 'Add rider:' when the primary action is adding a rider)",
                 "detail": "string",
                 "citation": {
-                    "source": "string",
-                    "quote": "string",
-                    "locator": "string",
+                    "source": "human-readable source name (e.g. 'Policy X-Ray', 'Health Score narrative') — NEVER raw schema paths like 'policy_xray key_clauses'",
+                    "quote": "exact verbatim quote from the source",
+                    "locator": "human-readable pointer (e.g. 'Key Clause 2', 'Section 3.2'); empty string if redundant — NEVER raw paths like 'key_clauses[1]' or 'health_score.narrative_en'",
                 },
             }
         ],

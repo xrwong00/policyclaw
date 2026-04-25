@@ -36,6 +36,7 @@ class Citation(BaseModel):
     source: str = Field(min_length=1)
     quote: str = Field(min_length=1)
     locator: str = Field(min_length=1)
+    url: str | None = None
 
 
 class APIHealth(BaseModel):

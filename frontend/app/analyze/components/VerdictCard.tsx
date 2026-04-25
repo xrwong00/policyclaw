@@ -2,6 +2,7 @@
 
 import type { AnalyzeResponse, Lang, Reason, VerdictLabel } from "../lib/types";
 import { t } from "../lib/i18n";
+import { formatCitationLocator, formatCitationSource } from "../lib/citation-format";
 
 interface VerdictCardProps {
   result: AnalyzeResponse;
@@ -53,6 +54,8 @@ function formatMYR(value: number): string {
 }
 
 function ReasonRow({ reason }: { reason: Reason }) {
+  const source = formatCitationSource(reason.citation.source);
+  const locator = formatCitationLocator(reason.citation.locator);
   return (
     <li style={{ marginBottom: 14 }}>
       <strong style={{ display: "block", marginBottom: 4 }}>{reason.title}</strong>
@@ -60,8 +63,8 @@ function ReasonRow({ reason }: { reason: Reason }) {
         {reason.detail}
       </span>
       <small style={{ display: "block", marginTop: 4, opacity: 0.7, fontSize: 12 }}>
-        <em>&ldquo;{reason.citation.quote}&rdquo;</em> — {reason.citation.source}
-        {reason.citation.locator ? ` (${reason.citation.locator})` : ""}
+        <em>&ldquo;{reason.citation.quote}&rdquo;</em> — {source}
+        {locator ? ` (${locator})` : ""}
       </small>
     </li>
   );
