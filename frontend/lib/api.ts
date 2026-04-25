@@ -33,7 +33,7 @@ export type ClawViewResponse = {
   confidence_band: ConfidenceBand;
 };
 
-const CLAWVIEW_CLIENT_TIMEOUT_MS = 90_000;
+const CLAWVIEW_CLIENT_TIMEOUT_MS = 150_000;
 
 async function fetchClawViewOnce(file: File): Promise<Response> {
   const form = new FormData();

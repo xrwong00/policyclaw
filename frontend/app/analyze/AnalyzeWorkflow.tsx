@@ -2,6 +2,7 @@
 
 import { DragEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import dynamic from "next/dynamic";
 
 import ActionSummary from "./components/ActionSummary";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -10,12 +11,21 @@ import FutureClawSimulator, {
 } from "./components/FutureClawSimulator";
 import HealthScoreGauge from "./components/HealthScoreGauge";
 import LanguageToggle from "./components/LanguageToggle";
-import { PdfViewer } from "./components/PdfViewer";
 import VerdictCard from "./components/VerdictCard";
 import { t } from "./lib/i18n";
 import { useLangStore } from "./lib/store";
 import type { AnalyzeResponse } from "./lib/types";
 import { postClawView, type ClawViewResponse } from "@/lib/api";
+
+const PdfViewer = dynamic(
+  () => import("./components/PdfViewer").then((m) => m.PdfViewer),
+  {
+    ssr: false,
+    loading: () => (
+      <p style={{ margin: 0, opacity: 0.7 }}>Loading PDF viewer…</p>
+    ),
+  },
+);
 
 type FormState = {
   insurer_name: string;

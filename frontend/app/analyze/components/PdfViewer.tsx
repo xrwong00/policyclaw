@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import * as pdfjs from "pdfjs-dist";
 
 import { ClawViewOverlay, type Language } from "./ClawViewOverlay";
 import type { ClawViewAnnotation } from "@/lib/api";
@@ -48,7 +49,6 @@ export function PdfViewer({
 
     const render = async () => {
       try {
-        const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
         const task = pdfjs.getDocument({ url: fileUrl });
