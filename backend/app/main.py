@@ -6,7 +6,7 @@ Route handlers live in `app.api.*` — this module only wires the app together:
   * `include_router` each feature module
 
 The concrete pipeline stages (Extract → Annotate → Score → Recommend) live in
-`app.services.*` and all GLM plumbing flows through `app.core.glm_client`.
+`app.services.*` and all LLM plumbing flows through `app.core.glm_client`.
 """
 
 from __future__ import annotations

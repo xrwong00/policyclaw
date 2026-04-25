@@ -138,10 +138,10 @@ async def citations(analysis_id: str, policy_count: int = 1) -> CitationVaultRes
 
 @router.get("/v1/ai/status")
 def ai_status() -> dict:
-    """Report whether GLM is configured and which model is active."""
+    """Report whether the LLM is configured and which model is active."""
     return {
         "ai_enabled": ai_config.enabled,
-        "mode": "GLM API" if ai_config.enabled else "Mock Data",
+        "mode": "OpenAI API" if ai_config.enabled else "Mock Data",
         "model": ai_config.model if ai_config.enabled else "N/A",
         "features": [
             "policy_xray (F1)",

@@ -1,14 +1,14 @@
 """
 AI Service Layer for PolicyClaw.
 
-This module orchestrates calls to a GLM-compatible chat-completions API.
-When GLM_API_KEY is not set, all functions return carefully crafted mock responses.
-When GLM_API_KEY is set, functions call the real API.
+This module orchestrates calls to an OpenAI-compatible chat-completions API.
+When OPENAI_API_KEY is not set, all functions return carefully crafted mock
+responses. When set, functions call the real API.
 
 Environment variables:
-  - GLM_API_KEY: Your GLM provider API key (leave empty for mock mode)
-  - GLM_API_BASE: GLM API endpoint (default: https://api.ilmu.ai/v1)
-  - GLM_MODEL: GLM model identifier (default: ilmu-glm-5.1)
+  - OPENAI_API_KEY: Provider API key (leave empty for mock mode)
+  - OPENAI_API_BASE: API endpoint (default: https://api.openai.com/v1)
+  - OPENAI_MODEL: Model identifier (default: gpt-5-mini)
 """
 
 from __future__ import annotations
@@ -64,7 +64,7 @@ async def _call_glm_policy_xray(
     downstream `citations[]` array in the uploaded PDF — PRD P2 compliance.
     """
     if not config.api_key:
-        raise RuntimeError("GLM_API_KEY is missing")
+        raise RuntimeError("OPENAI_API_KEY is missing")
 
     url = f"{config.api_base.rstrip('/')}/chat/completions"
     headers = {
@@ -202,7 +202,7 @@ async def _call_glm_policy_verdict(
     gives deterministic output on identical inputs (F7 acceptance).
     """
     if not config.api_key:
-        raise RuntimeError("GLM_API_KEY is missing")
+        raise RuntimeError("OPENAI_API_KEY is missing")
 
     cache_key = demo_cache.make_key(
         "recommend",
@@ -694,7 +694,7 @@ async def analyze_policy_xray(
         fallback = _mock_policy_xray(policy_input, policy_id)
         fallback.confidence_score = 45.0
         fallback.confidence_band = ConfidenceBand.LOW
-        fallback.extracted_fields["llm_status"] = "fallback_mock_due_to_glm_error"
+        fallback.extracted_fields["llm_status"] = "fallback_mock_due_to_llm_error"
         return fallback
 
 
@@ -716,7 +716,7 @@ async def _call_glm_health_score(
 ) -> HealthScore:
     """Call GLM API for F5 Health Score and return validated HealthScore."""
     if not config.api_key:
-        raise RuntimeError("GLM_API_KEY is missing")
+        raise RuntimeError("OPENAI_API_KEY is missing")
 
     url = f"{config.api_base.rstrip('/')}/chat/completions"
     headers = {
@@ -840,11 +840,11 @@ def _heuristic_health_score(
         clarity_trust=clarity_trust,
         narrative_en=(
             "Heuristic score: premium burden and coverage ratio drive the result. "
-            "GLM narrative unavailable; review with an advisor if the gauge is below 50."
+            "AI narrative unavailable; review with an advisor if the gauge is below 50."
         ),
         narrative_bm=(
             "Skor heuristik: bebanan premium dan nisbah perlindungan mendorong keputusan. "
-            "Naratif GLM tidak tersedia; rujuk penasihat jika tolok menunjukkan di bawah 50."
+            "Naratif AI tidak tersedia; rujuk penasihat jika tolok menunjukkan di bawah 50."
         ),
         confidence_score=55.0,
         confidence_band=ConfidenceBand.LOW,
@@ -941,7 +941,7 @@ async def analyze_policy_verdict(
         fallback.reasons.append(
             Reason(
                 title="LLM fallback activated",
-                detail="GLM call failed or timed out, so deterministic fallback logic was used for reliability.",
+                detail="LLM call failed or timed out, so deterministic fallback logic was used for reliability.",
                 citation=Citation(
                     source="PolicyClaw Runtime",
                     quote="LLM provider request did not complete within configured limits.",

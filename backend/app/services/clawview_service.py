@@ -1,19 +1,19 @@
 """
-ClawView service — GLM Call 2 (Annotate) per PRD §8.4.
+ClawView service — LLM Call 2 (Annotate) per PRD §8.4.
 
 Takes clause-level text + bounding boxes from PyMuPDF and returns
 `ClawViewResponse` with per-clause risk_level (red/yellow/green),
 plain-language explanations in EN + BM, and a "why this matters" note.
 
 Mode selection:
-  - No GLM_API_KEY  → deterministic heuristic mock (keyword-based).
-  - Key set, call OK → real GLM annotation via the shared streaming
+  - No OPENAI_API_KEY  → deterministic heuristic mock (keyword-based).
+  - Key set, call OK   → real annotation via the shared streaming
     `post_glm_with_retry` helper + Pydantic validation.
   - Key set, call fails → mock fallback with confidence_score=45.0,
     matching the ai_service.py degradation pattern.
 
 Env vars consumed (same as ai_service.py):
-  GLM_API_KEY, GLM_API_BASE, GLM_MODEL.
+  OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL.
 """
 
 from __future__ import annotations
@@ -426,10 +426,11 @@ def _build_glm_prompt(clauses: list[ClauseWithBBox]) -> list[dict]:
 async def _call_glm_annotate(
     clauses: list[ClauseWithBBox], policy_id: str
 ) -> ClawViewResponse:
-    """Real GLM call via the shared streaming entry point. Raises on failure.
+    """Real LLM call via the shared streaming entry point. Raises on failure.
 
-    Uses `post_glm_with_retry` because the Ilmu gateway drops non-streamed
-    connections past ~60s — see `backend/app/core/glm_client.py`.
+    Uses `post_glm_with_retry` because OpenAI's reasoning-model responses can
+    run long; SSE streaming keeps the connection healthy and lets us bail out
+    fast on transport errors — see `backend/app/core/glm_client.py`.
     """
     selected = _select_clauses_for_glm(clauses)
     messages = _build_glm_prompt(selected)

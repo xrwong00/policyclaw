@@ -1,6 +1,6 @@
 """Unit test — F7 acceptance: verdict consistent across 3 reruns of identical input.
 
-Exercises the heuristic fallback path (GLM_API_KEY unset) so the test runs offline
+Exercises the heuristic fallback path (OPENAI_API_KEY unset) so the test runs offline
 in CI. The fallback is pure math on `PolicyInput`, so identical inputs must produce
 byte-identical `PolicyVerdict` fields.
 """
@@ -45,9 +45,9 @@ def test_heuristic_verdict_is_deterministic() -> None:
 def test_analyze_policy_verdict_consistent_across_three_runs_in_fallback_mode(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With GLM_API_KEY unset, `analyze_policy_verdict` falls through to the
+    """With OPENAI_API_KEY unset, `analyze_policy_verdict` falls through to the
     heuristic. Three identical calls must produce byte-identical verdicts."""
-    monkeypatch.setenv("GLM_API_KEY", "")
+    monkeypatch.setenv("OPENAI_API_KEY", "")
     import app.services.ai_service as ai_service_module
 
     ai_service_module.config = ai_service_module.AIServiceConfig()
