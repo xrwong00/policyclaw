@@ -1,6 +1,6 @@
 # PolicyClaw Evals
 
-Deterministic pass/fail harness for the four-call GLM pipeline plus the
+Deterministic pass/fail harness for the four-call LLM pipeline plus the
 FutureClaw simulation surface. Complements `backend/tests/` (which exercises
 individual functions) by asserting end-to-end properties that must hold for
 every `PolicyInput` fixture — verdict labels are valid, health sub-scores are
@@ -31,13 +31,13 @@ on it. Latest committed run result:
   `simulate_life_events`, `monte_carlo_affordability`), applies the
   assertions, tallies, and writes [`results.md`](results.md).
 
-## Mock vs live GLM
+## Mock vs live LLM
 
-`run.py` clears `GLM_API_KEY` before importing `app.*`, so every stage falls
+`run.py` clears `OPENAI_API_KEY` before importing `app.*`, so every stage falls
 into its deterministic mock/heuristic path. This is intentional: a judge
 running the harness without an API key still gets a meaningful signal, and
-CI doesn't burn live GLM credits. To run against real GLM, comment out the
-`os.environ.pop("GLM_API_KEY", None)` line at the top of `run.py` and export
+CI doesn't burn live LLM credits. To run against the live LLM, comment out the
+`os.environ.pop("OPENAI_API_KEY", None)` line at the top of `run.py` and export
 your key.
 
 ## Adding a case
@@ -50,7 +50,7 @@ your key.
 
 ## Known limits
 
-- The `annotate` GLM call (ClawView) needs real PDF bytes + PyMuPDF
+- The `annotate` LLM call (ClawView) needs real PDF bytes + PyMuPDF
   bounding boxes; it's exercised by `backend/tests/test_orchestrator.py`
   instead of this harness.
 - Mock outputs are stable by design — if you upgrade the heuristics, expect

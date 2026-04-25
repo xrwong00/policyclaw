@@ -15,7 +15,7 @@
 
 PolicyClaw is an AI insurance decision copilot for Malaysians. Users upload policy PDFs; the system extracts structured fields, annotates hidden risks directly on the PDF, scores policy health, simulates 10 years of premiums and life events, and returns a **Hold / Switch / Downgrade / Add Rider** verdict with citations — in Bahasa Malaysia or English.
 
-**GLM centrality (brief requirement).** Remove Ilmu GLM and the system produces zero meaningful insights: plain-language extraction, ClawView annotations, Health Score sub-scores, recommendations, and multilingual output all break. Only the Monte Carlo numbers survive — without narrative interpretation. Keep GLM in the reasoning path; do not substitute heuristics.
+**LLM centrality (brief requirement).** Remove the LLM and the system produces zero meaningful insights: plain-language extraction, ClawView annotations, Health Score sub-scores, recommendations, and multilingual output all break. Only the Monte Carlo numbers survive — without narrative interpretation. Keep the LLM in the reasoning path; do not substitute heuristics. (Provider: OpenAI `gpt-5-mini`; the project initially targeted Z.AI GLM via Ilmu and the Z.AI mandatory-model rule was waived by the organizers after the Ilmu gateway proved unstable.)
 
 ---
 
@@ -46,9 +46,9 @@ PolicyClaw is an AI insurance decision copilot for Malaysians. Users upload poli
 
 **Step 2 — Profile intake.** Single-screen form: age, income bracket, dependents, primary concern, language. Stored in `localStorage`.
 
-**Step 3 — Policy X-Ray (GLM Extract).** Insurer, plan, premium, coverage, riders, exclusions, waiting periods, co-pay. Side-by-side: PDF page ↔ extracted fields with source-page tags.
+**Step 3 — Policy X-Ray (LLM Extract).** Insurer, plan, premium, coverage, riders, exclusions, waiting periods, co-pay. Side-by-side: PDF page ↔ extracted fields with source-page tags.
 
-**Step 4 — ClawView (GLM Annotate).** Color-coded highlights overlaid on the original PDF — 🟢 standard / 🟡 worth knowing / 🔴 hidden risk. Click → plain-language explanation + citation. **Wow Factor 1.**
+**Step 4 — ClawView (LLM Annotate).** Color-coded highlights overlaid on the original PDF — 🟢 standard / 🟡 worth knowing / 🔴 hidden risk. Click → plain-language explanation + citation. **Wow Factor 1.**
 
 **Step 5 — Policy Health Score.** Single 0–100 gauge with 4 sub-scores (0–25 each): Coverage Adequacy, Affordability, Premium Stability, Clarity & Trust.
 
@@ -56,7 +56,7 @@ PolicyClaw is an AI insurance decision copilot for Malaysians. Users upload poli
 - **Affordability** — premium trajectory vs income under inflation sliders; flags year premium > 10% of income.
 - **Life Event** — Cancer / Heart Attack / Disability / Death: covered vs out-of-pocket vs family impact.
 
-**Step 7 — Recommendation (GLM Recommend).** Per-policy verdict: 🟢 HOLD / 🟡 DOWNGRADE / 🔴 SWITCH / ⚫ ADD RIDER. Includes 3 reasons (with citations), confidence %, 10-year MYR impact, and explicit trade-offs.
+**Step 7 — Recommendation (LLM Recommend).** Per-policy verdict: 🟢 HOLD / 🟡 DOWNGRADE / 🔴 SWITCH / ⚫ ADD RIDER. Includes 3 reasons (with citations), confidence %, 10-year MYR impact, and explicit trade-offs.
 
 **Step 8 — Action Summary.** Downloadable card: verdict, top 3 reasons, top 3 concrete actions, disclaimer. PDF export via jsPDF.
 
@@ -87,7 +87,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 
 **How (technical).**
 1. PyMuPDF extracts text **with bounding-box coordinates** per clause.
-2. GLM returns `{ risk_level: green|yellow|red, plain_explanation, clause_id }` per clause.
+2. The LLM returns `{ risk_level: green|yellow|red, plain_explanation, clause_id }` per clause.
 3. Frontend: react-pdf-viewer + custom SVG highlight layer positioned from bounding boxes.
 4. Click handler → tooltip with plain-language explanation + "why this matters."
 
@@ -109,7 +109,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 - **Affordability** — sliders for medical inflation (3–20%) and income growth (0–8%). Output: 10-year line chart with 3 scenario bands, cumulative MYR, "danger zone" flag when premium > 10% of income.
 - **Life Event** — pick Cancer / Heart Attack / Disability / Death. Output: covered / co-pay / out-of-pocket bars, months of household income at risk, "compare alternative" toggle against a switched policy.
 
-**How (technical).** 1000 Monte Carlo runs via numpy/scipy — pure Python, **no GLM in the slider loop** (instant updates). GLM only generates the narrative interpretation. BNM medical inflation data (2014–2024) baked in as historical anchor.
+**How (technical).** 1000 Monte Carlo runs via numpy/scipy — pure Python, **no LLM in the slider loop** (instant updates). The LLM only generates the narrative interpretation. BNM medical inflation data (2014–2024) baked in as historical anchor.
 
 **Acceptance criteria.**
 - [ ] Slider drag updates chart smoothly (60 FPS, <100ms)
@@ -128,7 +128,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 |---|---|
 | Frontend | Next.js 15 (App Router) + TypeScript + Tailwind + shadcn/ui |
 | Backend | Python 3.12 + FastAPI + Pydantic v2 + SQLModel |
-| AI | Ilmu GLM (`ilmu-glm-5.1` on `api.ilmu.ai/v1`) via streaming SSE (`post_glm_with_retry`) + Pydantic-validated typed outputs |
+| AI | OpenAI `gpt-5-mini` on `api.openai.com/v1` via streaming SSE (`post_glm_with_retry`) + Pydantic-validated typed outputs |
 | PDF | PyMuPDF (fitz) parsing, react-pdf-viewer display |
 | Charts | Recharts |
 | Simulation | numpy + scipy.stats |
@@ -136,7 +136,7 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 | State (frontend) | Zustand + TanStack Query |
 | Animation | Framer Motion |
 
-> Env defaults in code (`backend/app/services/{ai_service,analyze_service,profile_extraction_service}.py`): `GLM_API_BASE=https://api.ilmu.ai/v1`, `GLM_MODEL=ilmu-glm-5.1`. These override any older "Z.AI GLM-4.6" references in earlier docs.
+> Env defaults in code (`backend/app/core/glm_client.py`): `OPENAI_API_BASE=https://api.openai.com/v1`, `OPENAI_MODEL=gpt-5-mini`. These supersede every older provider reference in this PRD or in `SAD.md` / `AI_INTEGRATION_GUIDE.md` — the code is ground truth. The Z.AI mandatory-model rule was waived by the organizers after the Ilmu gateway proved unstable.
 
 ### 8.2 Supabase: Ship Target vs MVP Fallback
 
@@ -162,8 +162,8 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
        │               │                │
        ▼               ▼                ▼
 ┌────────────┐ ┌──────────────┐ ┌───────────────────┐
-│ Ingestion  │ │ GLM Pipeline │ │ Simulation Engine │
-│ PyMuPDF    │ │ Ilmu GLM-5.1 │ │ numpy + scipy     │
+│ Ingestion  │ │ LLM Pipeline │ │ Simulation Engine │
+│ PyMuPDF    │ │ gpt-5-mini   │ │ numpy + scipy     │
 │ + Extract  │ │ + streaming  │ │ Monte Carlo       │
 └──────┬─────┘ └───────┬──────┘ └─────────┬─────────┘
        │               │                  │
@@ -174,14 +174,14 @@ Priority: P0 = ship-or-die, P1 = ship-if-time. Total ~24h.
 └──────────────────────────────────────────────────────┘
 ```
 
-### 8.4 GLM Pipeline — 4 Sequential Calls per Analysis
+### 8.4 LLM Pipeline — 4 Sequential Calls per Analysis
 
 1. **Extract** — raw PDF text → structured `Policy` Pydantic model.
 2. **Annotate** — each clause → `{risk_level, plain_explanation, clause_id}` (drives ClawView).
 3. **Score** — policy + user profile → 4 sub-scores (drives Health Score gauge).
 4. **Recommend** — all above + simulation results → verdict + 3 reasons + confidence + MYR impact + citations.
 
-Each call streams through `post_glm_with_retry` (SSE concat; required — Ilmu's gateway closes non-streamed connections past ~60s) and its JSON content is validated against a Pydantic model. Total latency target: **~15s**.
+Each call streams through `post_glm_with_retry` (SSE concat; keeps long reasoning-model responses healthy) and its JSON content is validated against a Pydantic model. Total latency target: **~15s**.
 
 ### 8.5 Current Endpoint Surface
 
@@ -195,7 +195,7 @@ policyclaw/
 ├── PRD.md                   # This document
 ├── backend/
 │   ├── requirements.txt
-│   ├── .env.example         # GLM_API_KEY, GLM_API_BASE, GLM_MODEL
+│   ├── .env.example         # OPENAI_API_KEY, OPENAI_API_BASE, OPENAI_MODEL
 │   ├── app/
 │   │   ├── main.py                           # FastAPI entry: CORS + include_router
 │   │   ├── api/                              # Route handlers split by concern
@@ -205,7 +205,7 @@ policyclaw/
 │   │   │   ├── futureclaw.py                 # /v1/simulate/* (F6 / Wow 2)
 │   │   │   └── legacy.py                     # /v1/ai/*, /v1/policies/upload, /v1/verdict
 │   │   ├── core/
-│   │   │   └── glm_client.py                 # Single GLM entry point (env, config, retry)
+│   │   │   └── glm_client.py                 # Single LLM entry point (env, config, retry)
 │   │   ├── schemas/                          # Pydantic contracts split by domain
 │   │   │   ├── common.py                     # Citation, ConfidenceBand, PolicyType
 │   │   │   ├── policy.py                     # PolicyInput, PolicyClause
@@ -216,7 +216,7 @@ policyclaw/
 │   │   └── services/
 │   │       ├── analyze_service.py            # Orchestrates full analysis
 │   │       ├── profile_extraction_service.py # Auto-fills PolicyProfile
-│   │       ├── ai_service.py                 # GLM prompts + mock fallback
+│   │       ├── ai_service.py                 # LLM prompts + mock fallback
 │   │       ├── clawview_service.py           # F4 / Wow 1
 │   │       ├── futureclaw_narrative.py       # F6 / Wow 2 narratives
 │   │       ├── pdf_parser.py
@@ -226,7 +226,7 @@ policyclaw/
 │   ├── tests/               # pytest: extraction, simulation, recommendation
 │   └── data/
 │       ├── bnm_corpus/      # Static BNM data
-│       └── demo_cache/      # Cached GLM responses (offline demo fallback)
+│       └── demo_cache/      # Cached LLM responses (offline demo fallback)
 └── frontend/
     ├── package.json
     └── app/
@@ -258,14 +258,14 @@ policyclaw/
 | Metric | Target |
 |---|---|
 | PDF upload → preview rendered | ≤2s |
-| Full analysis (4 GLM calls) | ≤15s |
+| Full analysis (4 LLM calls) | ≤15s |
 | Simulation slider update | 60 FPS |
 | ClawView highlight render | ≤500ms after analysis |
 | Action Plan PDF generation | ≤2s |
 
 ### 9.2 Reliability
 
-- All GLM calls route through the streaming `post_glm_with_retry` helper with exponential backoff on transport errors. Default per-call budget: **3 attempts / 120s httpx read timeout**. Callers can override per call — ClawView's Annotate tightens to **2 attempts / 30s** so a slow Ilmu response degrades to the heuristic mock within ~60s instead of hanging the frontend. Non-streamed calls would fail — Ilmu's gateway drops them past ~60s.
+- All LLM calls route through the streaming `post_glm_with_retry` helper with exponential backoff on transport errors. Default per-call budget: **3 attempts / 120s httpx read timeout**. Callers can override per call — ClawView's Annotate tightens to **2 attempts / 30s** so a slow upstream response degrades to the heuristic mock within ~60s instead of hanging the frontend. Streaming keeps long reasoning-model responses healthy.
 - Graceful degradation: if **Annotate** fails, ClawView shows "limited annotation available" — rest of flow continues.
 - Persist AI outputs to Supabase before UI consumes (enables Realtime replay). MVP: in-memory cache.
 
@@ -288,31 +288,31 @@ policyclaw/
 ### Hour 0–2 — Foundations
 - Next.js + FastAPI scaffolds running.
 - Supabase setup is **ship target only** — if it takes >30 min, defer and proceed with in-memory fallback.
-- GLM client tested with hello-world.
+- LLM client tested with hello-world.
 - 3 sample PDFs prepared (anonymized).
 
 ### Hour 2–6 — Backend Core
 - `/upload` + PyMuPDF text extraction with bounding boxes.
-- **GLM Call 1 (Extract)** working via streaming `post_glm_with_retry` + Pydantic validation.
+- **LLM Call 1 (Extract)** working via streaming `post_glm_with_retry` + Pydantic validation.
 - Schemas defined. BNM corpus seeded (pgvector if Supabase on, else in-memory).
 
 ### Hour 6–10 — ClawView (Wow 1)
-- **GLM Call 2 (Annotate)** returns per-clause risk levels.
+- **LLM Call 2 (Annotate)** returns per-clause risk levels.
 - react-pdf-viewer + SVG bounding-box overlay.
 - Tooltip with plain-language explanation.
 - **Checkpoint: ClawView visibly working on 1 policy.**
 
 ### Hour 10–14 — Health Score + Recommendation
-- **GLM Call 3 (Score)** → 4 sub-scores.
+- **LLM Call 3 (Score)** → 4 sub-scores.
 - Circular gauge (Recharts or custom SVG).
-- **GLM Call 4 (Recommend)** → verdict + reasons + confidence.
+- **LLM Call 4 (Recommend)** → verdict + reasons + confidence.
 - Verdict card UI.
 
 ### Hour 14–18 — FutureClaw (Wow 2)
 - Monte Carlo via numpy.
 - Affordability chart + sliders.
 - Life Event mode, 4 scenarios (cut from 6).
-- GLM narrative interpretation.
+- LLM narrative interpretation.
 - **Checkpoint: both wow factors demonstrable.**
 
 ### Hour 18–21 — Polish

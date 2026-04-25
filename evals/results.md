@@ -2,8 +2,8 @@
 
 - **Overall:** 12/12 passed (100.0%)
 - **Threshold:** ≥ 85% required
-- **Mode:** mock (GLM_API_KEY absent — stages exercise deterministic fallbacks)
-- **GLM config resolved:** model=ilmu-glm-5.1, base=https://api.ilmu.ai/v1
+- **Mode:** mock (OPENAI_API_KEY absent — stages exercise deterministic fallbacks)
+- **LLM config resolved:** model=gpt-5-mini, base=https://api.openai.com/v1
 
 ## By stage
 

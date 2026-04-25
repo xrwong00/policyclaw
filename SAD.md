@@ -35,15 +35,15 @@ PolicyClaw is an AI insurance decision copilot for Malaysian policyholders. A us
 │ FastAPI — localhost:8000                    │
 │ /api/extract-policy-profile                 │
 │ /api/analyze  (3-call backend pipeline)     │
-│ /v1/clawview  (4th GLM call — Annotate)     │
+│ /v1/clawview  (4th LLM call — Annotate)     │
 │ /v1/simulate/affordability                  │
 │ /v1/simulate/life-event                     │
 └──┬──────────────────┬─────────────────────┬─┘
    │                  │                     │
    ▼                  ▼                     ▼
 ┌──────────┐ ┌────────────────────┐ ┌────────────────┐
-│ PyMuPDF  │ │ Ilmu GLM           │ │ numpy + scipy  │
-│ parser   │ │ ilmu-glm-5.1       │ │ Monte Carlo    │
+│ PyMuPDF  │ │ OpenAI             │ │ numpy + scipy  │
+│ parser   │ │ gpt-5-mini         │ │ Monte Carlo    │
 │ (chunks  │ │ streamed via httpx │ │ (simulation)   │
 │ + bbox)  │ │ + retry/fallback   │ │                │
 └──────────┘ └────────────────────┘ └────────────────┘
@@ -81,13 +81,13 @@ Lifted directly from PRD §3:
 | Module | Purpose | Key inputs | Key outputs |
 |---|---|---|---|
 | `analyze_service.py` | 3-stage orchestrator for `/api/analyze` | uploaded PDF bytes + user profile | `AnalyzeResponse` |
-| `ai_service.py` | All GLM calls + mock-mode fallbacks. Hosts `analyze_policy_xray` (Extract), `analyze_health_score` (Score), `analyze_policy_verdict` (Recommend). Handles demo-cache read/write. | `PolicyInput`, `PolicyXRayResponse`, `HealthScore` | `PolicyXRayResponse`, `HealthScore`, `PolicyVerdict` |
-| `clawview_service.py` | GLM Call 2 (Annotate). Driven by `/v1/clawview`. PyMuPDF bbox clauses → `ClawViewAnnotation`s with risk_level + plain explanation. | raw PDF bytes | `ClawViewResponse` |
-| `futureclaw_narrative.py` | Bilingual narrative batch for life-event scenarios. Single GLM call produces BM + EN strings per event. | 4 life-event scenarios + `PolicyInput` | narrative pairs |
+| `ai_service.py` | All LLM calls + mock-mode fallbacks. Hosts `analyze_policy_xray` (Extract), `analyze_health_score` (Score), `analyze_policy_verdict` (Recommend). Handles demo-cache read/write. | `PolicyInput`, `PolicyXRayResponse`, `HealthScore` | `PolicyXRayResponse`, `HealthScore`, `PolicyVerdict` |
+| `clawview_service.py` | LLM Call 2 (Annotate). Driven by `/v1/clawview`. PyMuPDF bbox clauses → `ClawViewAnnotation`s with risk_level + plain explanation. | raw PDF bytes | `ClawViewResponse` |
+| `futureclaw_narrative.py` | Bilingual narrative batch for life-event scenarios. Single LLM call produces BM + EN strings per event. | 4 life-event scenarios + `PolicyInput` | narrative pairs |
 | `simulation.py` | Pure-Python Monte Carlo. `project_premiums` (3 inflation scenarios over 10 years), `monte_carlo_affordability` (1000 runs), `simulate_life_events` (cancer / heart / disability / death). | `PolicyInput` + slider state | scenario arrays + cost breakdowns |
 | `pdf_parser.py` | PyMuPDF text chunker. Text-native PDFs yield `PolicyChunk` lists with page + section; bbox-aware variant lives in `clawview_service`. | PDF bytes | `list[PolicyChunk]` |
 | `rag.py` | Lexical retrieval + context builder. Swappable with embeddings post-hackathon. | chunks + query | ranked context string |
-| `verdict.py` | Deterministic heuristic fallback (`generate_verdict`) used when GLM is unreachable. | `PolicyInput`, 10-year cost | `(VerdictLabel, confidence, savings, band)` |
+| `verdict.py` | Deterministic heuristic fallback (`generate_verdict`) used when the LLM is unreachable. | `PolicyInput`, 10-year cost | `(VerdictLabel, confidence, savings, band)` |
 | `profile_extraction_service.py` | Drives `/api/extract-policy-profile` — auto-fills the intake form. | uploaded PDF | `ExtractPolicyProfileResponse` |
 | `demo_cache.py` | SHA-256-keyed JSON read-through cache under `backend/data/demo_cache/`. Protects the demo against wifi drops (PRD §8.2). | stage name + canonical args | cached payload or `None` |
 
@@ -112,16 +112,16 @@ Lifted directly from PRD §3:
 
 ---
 
-## 4. Data Flow — 3+1 GLM pipeline
+## 4. Data Flow — 3+1 LLM pipeline
 
-`/api/analyze` runs the first three GLM calls sequentially (Extract → Score → Recommend). The fourth GLM call (Annotate for ClawView) is served by `/v1/clawview` and fired by the frontend in parallel with user review of the verdict + health gauge. Total 4 GLM calls per analysis; perceived end-to-end latency stays under 15 s because Annotate overlaps with user reading.
+`/api/analyze` runs the first three LLM calls sequentially (Extract → Score → Recommend). The fourth LLM call (Annotate for ClawView) is served by `/v1/clawview` and fired by the frontend in parallel with user review of the verdict + health gauge. Total 4 LLM calls per analysis; perceived end-to-end latency stays under 15 s because Annotate overlaps with user reading.
 
 ```mermaid
 sequenceDiagram
     actor User
     participant FE as Next.js
     participant BE as FastAPI
-    participant GLM as Ilmu GLM
+    participant GLM as OpenAI gpt-5-mini
     participant Cache as demo_cache
 
     User->>FE: Upload PDF + fill profile
@@ -158,10 +158,10 @@ sequenceDiagram
 ```
 
 **Reliability envelope (PRD §9.2).**
-- Each GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`: streaming SSE (required — Ilmu drops non-streamed connections past ~60s) with exponential-backoff retries. Default budget is 3 attempts / 120s httpx read timeout; callers can tighten it per call (ClawView uses `attempts=2, read_timeout_s=30.0` so the Annotate path falls back to the heuristic mock within ~60s).
-- Every GLM call has a deterministic fallback (`_mock_*` / `_heuristic_*`). The pipeline never hard-fails on GLM issues.
+- Each LLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`: streaming SSE (keeps long reasoning-model responses healthy) with exponential-backoff retries. Default budget is 3 attempts / 120s httpx read timeout; callers can tighten it per call (ClawView uses `attempts=2, read_timeout_s=30.0` so the Annotate path falls back to the heuristic mock within ~60s).
+- Every LLM call has a deterministic fallback (`_mock_*` / `_heuristic_*`). The pipeline never hard-fails on LLM issues.
 - `analyze_health_score` + `analyze_policy_xray` + `analyze_policy_verdict` are all demo-cache read-through: identical inputs return identical outputs even across fresh processes, satisfying F7 verdict consistency.
-- Temperature 0.1 on Recommend guarantees low entropy in production.
+- Determinism on Recommend comes from the demo-cache read-through. The `gpt-5-mini` reasoning model rejects custom `temperature`; the shared client strips it and uses `reasoning_effort: "low"` automatically — see `_adapt_payload_for_provider` in `glm_client.py`.
 
 ---
 
@@ -174,10 +174,10 @@ sequenceDiagram
 | GET  | `/health` | Health check. |
 | POST | `/api/extract-policy-profile` | PDF → candidate profile fields. |
 | POST | `/api/analyze` | Full 3-call pipeline → extended `AnalyzeResponse`. |
-| POST | `/v1/clawview` | GLM Call 2 Annotate → `ClawViewResponse`. |
+| POST | `/v1/clawview` | LLM Call 2 Annotate → `ClawViewResponse`. |
 | POST | `/v1/simulate/affordability` | Monte Carlo premium-vs-income. |
 | POST | `/v1/simulate/life-event` | 4-scenario life-event simulator with bilingual narratives. |
-| GET  | `/v1/ai/status` | Reports mock vs live GLM mode. |
+| GET  | `/v1/ai/status` | Reports mock vs live LLM mode. |
 | misc | `/v1/ai/*`, `/v1/policies/upload`, `/v1/simulate/premium`, `/v1/verdict` | Legacy mock-first endpoints — stable scaffolding for future work. |
 
 ### Core Pydantic contracts (`backend/app/schemas/`)
@@ -194,11 +194,11 @@ sequenceDiagram
 
 | Choice | Alternatives considered | Rationale |
 |---|---|---|
-| **Ilmu GLM `ilmu-glm-5.1` via `api.ilmu.ai/v1`** | Z.AI `bigmodel.cn`, OpenAI GPT-4, Anthropic Claude | Ilmu is an authorized Z.AI endpoint (confirmed with organizers). Non-Z.AI models disqualify the submission. |
-| **FastAPI + Pydantic v2** | Flask, Django, Node.js | Typed async endpoints, OpenAPI at `/docs`, Pydantic models used directly for GLM response validation. |
-| **Streaming `post_glm_with_retry` + Pydantic `.model_validate`** | `instructor`-wrapped non-streaming client, hand-rolled JSON parsing | Ilmu's gateway closes non-streamed connections past ~60s, so we stream SSE chunks, aggregate, and validate with Pydantic. 3-attempt transport retry with exponential backoff under 120s httpx read timeout. `instructor` and `tenacity` remain pinned in `requirements.txt` pending a doc-level call about whether to drop them or re-adopt once typed streaming is mature. |
+| **OpenAI `gpt-5-mini` via `api.openai.com/v1`** | Ilmu / Z.AI GLM (`ilmu-glm-5.1`), Anthropic Claude | The project initially targeted Z.AI GLM via Ilmu to satisfy the rubric's mandatory-Z.AI rule. The Ilmu gateway proved unstable in practice and the organizers waived the requirement, so the reasoning provider was swapped to `gpt-5-mini`. |
+| **FastAPI + Pydantic v2** | Flask, Django, Node.js | Typed async endpoints, OpenAPI at `/docs`, Pydantic models used directly for LLM response validation. |
+| **Streaming `post_glm_with_retry` + Pydantic `.model_validate`** | `instructor`-wrapped non-streaming client, hand-rolled JSON parsing | Streaming keeps long reasoning-model responses (gpt-5-mini) healthy; we aggregate SSE chunks and validate with Pydantic. 3-attempt transport retry with exponential backoff under 120s httpx read timeout. `instructor` and `tenacity` remain pinned in `requirements.txt` pending a doc-level call about whether to drop them or re-adopt once typed streaming is mature. |
 | **PyMuPDF (fitz)** | pypdf, pdfplumber | Returns per-clause bounding boxes required by ClawView's SVG highlight overlay. pypdf gives text but not reliable bbox coords. |
-| **numpy / scipy for Monte Carlo** | GLM in the slider loop | Keeps slider drag at 60 FPS. GLM only runs for narrative after the simulation completes — PRD F6 requirement. |
+| **numpy / scipy for Monte Carlo** | LLM in the slider loop | Keeps slider drag at 60 FPS. The LLM only runs for narrative after the simulation completes — PRD F6 requirement. |
 | **Recharts** | shadcn/ui Chart, D3 | Simpler declarative React API; the FutureClaw line + bar charts don't need D3's flexibility. |
 | **Zustand + TanStack Query** | Redux, Recoil | Zustand's tiny API keeps language toggle coherent without reducer boilerplate. |
 | **Framer Motion** | CSS transitions | Smooth step transitions and results entrance meet F10 without a custom system. |
@@ -243,10 +243,10 @@ Pass/warn policy: ruff and lint are informational during the 24-hour build so st
 
 ### Environment variables
 
-Loaded from `backend/.env` (git-ignored). Defaults live in `ai_service.py` and `analyze_service.py`:
-- `GLM_API_KEY` — required for live GLM mode; when unset, mock + heuristic fallback path activates.
-- `GLM_API_BASE` — defaults to `https://api.ilmu.ai/v1`.
-- `GLM_MODEL` — defaults to `ilmu-glm-5.1`.
+Loaded from `backend/.env` (git-ignored). Defaults live in `backend/app/core/glm_client.py`:
+- `OPENAI_API_KEY` — required for live LLM mode; when unset, mock + heuristic fallback path activates.
+- `OPENAI_API_BASE` — defaults to `https://api.openai.com/v1`.
+- `OPENAI_MODEL` — defaults to `gpt-5-mini`.
 - `NEXT_PUBLIC_API_BASE_URL` — frontend override for the backend origin.
 
 ---

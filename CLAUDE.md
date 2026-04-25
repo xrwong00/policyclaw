@@ -4,16 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**PolicyClaw** is an AI insurance decision copilot for Malaysians, built for **UMHackathon 2026 (Domain 2 — AI for Economic Empowerment & Decision Intelligence)**. It is a 24-hour solo-dev MVP. Users upload insurance policy PDFs; the system uses **Ilmu GLM (`ilmu-glm-5.1`)** to extract structured fields, annotate hidden risks directly on the PDF, score policy health, simulate 10 years of premiums and life events, and return a **Hold / Switch / Downgrade / Add Rider** verdict with citations.
+**PolicyClaw** is an AI insurance decision copilot for Malaysians, built for **UMHackathon 2026 (Domain 2 — AI for Economic Empowerment & Decision Intelligence)**. It is a 24-hour solo-dev MVP. Users upload insurance policy PDFs; the system uses **OpenAI `gpt-5-mini`** to extract structured fields, annotate hidden risks directly on the PDF, score policy health, simulate 10 years of premiums and life events, and return a **Hold / Switch / Downgrade / Add Rider** verdict with citations.
 
-The GLM centrality test matters: per the hackathon brief, if the LLM is removed the system must produce no meaningful insights. Keep Ilmu GLM in the reasoning path — don't replace GLM calls with pure heuristics.
+The LLM-centrality test matters: per the hackathon brief, if the LLM is removed the system must produce no meaningful insights. Keep `gpt-5-mini` in the reasoning path — don't replace LLM calls with pure heuristics.
 
 See `README.md` for framing and **`PRD.md` (v2.1, 2026-04-24) for the authoritative spec**. Anytime scope, architecture, or feature priority is in question, the PRD is the source of truth.
 
 ## The two things being judged
 
-1. **ClawView (Wow Factor 1)** — color-coded risk highlights (green/yellow/red) overlaid *on the actual policy PDF* using PyMuPDF bounding boxes + GLM annotation. Click a highlight → plain-language explanation + citation. This is the visual demo moment.
-2. **FutureClaw (Wow Factor 2)** — interactive 10-year Monte Carlo simulator with two toggleable modes: **Affordability** (premium vs income trajectory) and **Life Event** (Cancer / Heart Attack / Disability / Death of primary earner). Math runs in numpy (no GLM in the slider loop); GLM only generates the narrative interpretation.
+1. **ClawView (Wow Factor 1)** — color-coded risk highlights (green/yellow/red) overlaid *on the actual policy PDF* using PyMuPDF bounding boxes + LLM annotation. Click a highlight → plain-language explanation + citation. This is the visual demo moment.
+2. **FutureClaw (Wow Factor 2)** — interactive 10-year Monte Carlo simulator with two toggleable modes: **Affordability** (premium vs income trajectory) and **Life Event** (Cancer / Heart Attack / Disability / Death of primary earner). Math runs in numpy (no LLM in the slider loop); the LLM only generates the narrative interpretation.
 
 Don't erode either of these while refactoring — they're the differentiator.
 
@@ -22,9 +22,9 @@ Don't erode either of these while refactoring — they're the differentiator.
 - `backend/` — FastAPI service. Entry: `backend/app/main.py`. Pipeline services in `backend/app/services/`:
   - `analyze_service.py` — orchestrates the full analysis flow
   - `profile_extraction_service.py` — auto-fills `PolicyProfile` fields from PDFs
-  - `ai_service.py` — GLM API wrapper (falls back to mock responses when `GLM_API_KEY` is unset)
+  - `ai_service.py` — LLM API wrapper (falls back to mock responses when `OPENAI_API_KEY` is unset)
   - `clawview_service.py` — drives the ClawView (F4 / Wow 1) clause-risk overlay
-  - `futureclaw_narrative.py` — single-GLM-call narrative batch for the FutureClaw (F6 / Wow 2) life-event simulator
+  - `futureclaw_narrative.py` — single-LLM-call narrative batch for the FutureClaw (F6 / Wow 2) life-event simulator
   - `pdf_parser.py`, `rag.py`, `simulation.py`, `verdict.py`
   - Data contracts in `backend/app/schemas/` (package split by domain: `common`, `policy`, `analyze`, `clawview`, `futureclaw`, `legacy_ai`). Cost/inflation corpus in `backend/data/bnm_corpus/`.
   - Unit tests in `backend/tests/` (run with `pytest backend/tests/ -q`).
@@ -38,7 +38,7 @@ Don't erode either of these while refactoring — they're the differentiator.
 
 - **Backend:** Python 3.10+ (PRD targets 3.12), FastAPI, Pydantic v2, httpx, numpy. Currently pypdf 5.4.0 in `requirements.txt`; **PRD target is PyMuPDF (fitz)** because ClawView needs per-clause bounding boxes. If you're touching the PDF pipeline for ClawView, migrate to PyMuPDF rather than extending pypdf.
 - **Frontend:** Next.js 15.3, React 19, TypeScript 5.8, ESLint 9. PRD target adds Tailwind + shadcn/ui + react-pdf-viewer + Recharts + Framer Motion + Zustand + TanStack Query — check `frontend/package.json` for what's actually installed before assuming.
-- **LLM:** **Z.AI GLM via Ilmu** — actual defaults in `backend/app/services/{ai_service,analyze_service,profile_extraction_service}.py` are `GLM_API_BASE=https://api.ilmu.ai/v1` and `GLM_MODEL=ilmu-glm-5.1`. Env vars live in `backend/.env` (see `.env.example`): `GLM_API_KEY`, `GLM_API_BASE`, `GLM_MODEL`. `api.ilmu.ai` / `ilmu-glm-5.1` is an **authorized Z.AI endpoint** (confirmed with organizers), which satisfies the hackathon's mandatory-Z.AI rule — **do not migrate to `bigmodel.cn` or rename away from Ilmu.** `PRD.md` §1.4/§9.1 references to "Z.AI GLM-4.6 via bigmodel.cn" and `README.md` references to `glm-5.1` predate this confirmation; the code defaults are ground truth. The PRD specifies `instructor` for typed outputs — adopt it when wiring real GLM calls.
+- **LLM:** **OpenAI `gpt-5-mini`** — defaults resolved by `backend/app/core/glm_client.py` are `OPENAI_API_BASE=https://api.openai.com/v1` and `OPENAI_MODEL=gpt-5-mini`. Env vars live in `backend/.env` (see `.env.example`): `OPENAI_API_KEY`, `OPENAI_API_BASE`, `OPENAI_MODEL`. The project originally targeted Z.AI GLM via Ilmu (`api.ilmu.ai` / `ilmu-glm-5.1`) to satisfy a hackathon mandatory-Z.AI rule, but the Ilmu gateway proved unstable and the organizers waived the Z.AI requirement for this submission, so the reasoning provider was swapped. Older references to "Z.AI GLM-4.6 via bigmodel.cn" or `ilmu-glm-5.1` in `PRD.md` / `SAD.md` / `AI_INTEGRATION_GUIDE.md` predate the swap; the code defaults are ground truth. Note: the gpt-5 / o-series reasoning models reject custom `temperature` / `top_p` — the shared client strips those and injects `reasoning_effort: "low"` automatically (see `backend/app/core/glm_client.py:_adapt_payload_for_provider`).
 - **Database:** none in MVP. Supabase (Postgres + Auth + Storage + Realtime + pgvector) is the **ship target**, explicitly flagged in PRD §9.2 / §10.3 as *not MVP-gating*. MVP fallback is in-memory backend state + browser `localStorage`. Don't hard-require Supabase in any code path the demo depends on.
 
 ## Commands
@@ -68,14 +68,14 @@ npm run lint
 
 Pytest lives in `backend/tests/` and runs via `pytest backend/tests/ -q` (also enforced by CI). FutureClaw has 13 unit tests covering the Monte Carlo + life-event + confidence + narrative-mock paths. Extraction and recommendation tests are still the Hour 21-23 PRD target. If you add tests, follow `.claude/rules/common/testing.md`.
 
-## Target architecture (per PRD §9.4) — 4 GLM calls per analysis
+## Target architecture (per PRD §9.4) — 4 LLM calls per analysis
 
 1. **Extract** — raw PDF text → structured `Policy` Pydantic model
 2. **Annotate** — each clause → `{risk_level: green|yellow|red, explanation, clause_id}` (drives ClawView)
 3. **Score** — policy + user profile → 4 sub-scores: Coverage Adequacy, Affordability, Premium Stability, Clarity & Trust (drives Health Score gauge)
 4. **Recommend** — all above + simulation results → `Verdict + 3 Reasons + Confidence + MYR impact + Citations`
 
-Total latency target: ~15s. Every GLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`, which streams SSE chunks (required — Ilmu's gateway closes non-streamed connections past ~60s) and retries transport errors with exponential backoff. Defaults: 3 attempts, 120s httpx read timeout. Callers can override per call — ClawView's Annotate uses `attempts=2, read_timeout_s=30.0` so it falls back to the heuristic mock within ~60s instead of tying up the frontend for minutes. If the Annotate call fails, ClawView degrades gracefully ("limited annotation available") without blocking the rest of the flow.
+Total latency target: ~15s. Every LLM call routes through `post_glm_with_retry` in `backend/app/core/glm_client.py`, which streams SSE chunks (keeps long reasoning-model responses healthy) and retries transport errors with exponential backoff. Defaults: 3 attempts, 120s httpx read timeout. Callers can override per call — ClawView's Annotate uses `attempts=2, read_timeout_s=30.0` so it falls back to the heuristic mock within ~60s instead of tying up the frontend for minutes. If the Annotate call fails, ClawView degrades gracefully ("limited annotation available") without blocking the rest of the flow.
 
 ## Current endpoint surface
 
@@ -84,7 +84,7 @@ Production flow (keep these working):
 - `POST /api/analyze` — full analysis → verdict + reasons + confidence + citations
 - `POST /v1/clawview` — ClawView (F4 / Wow 1) clause-level risk overlay
 - `POST /v1/simulate/affordability` — FutureClaw (F6 / Wow 2) Monte Carlo premium projection
-- `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with GLM narratives
+- `POST /v1/simulate/life-event` — FutureClaw life-event scenarios with LLM-generated narratives
 
 Legacy / scaffolded under `/v1/...` — `/v1/simulate/premium`, `/v1/verdict`, `/v1/policies/upload`, and the `/v1/ai/*` family (F1/F2/F4/F7/F9/F11) — some `/v1/ai/*` endpoints return mock data. Check `backend/app/api/legacy.py` before assuming an endpoint is live. CORS is configured in `backend/app/main.py` for the local frontend origin.
 
@@ -100,7 +100,7 @@ From PRD §4 — these shape judgment calls when specs are ambiguous:
 
 Preliminary-round rubric from `docs/hackathon/judging-criteria.pdf`. Full reference PDFs (PRD/SAD/QATD templates + rubric) live in `docs/hackathon/`. Let these weights inform scope and polish decisions — not every trade-off is equal.
 
-**Eligibility (hard rule):** Z.AI GLM is mandatory; any other reasoning model is disqualifying. `api.ilmu.ai` / `ilmu-glm-5.1` is an authorized Z.AI endpoint and satisfies this — see the LLM bullet under Tech stack.
+**Eligibility:** The original rubric required Z.AI GLM and disqualified other reasoning models. The hackathon organizers waived this rule for PolicyClaw after Ilmu's `api.ilmu.ai` gateway proved unstable in practice; the project now ships on OpenAI `gpt-5-mini`. See the LLM bullet under Tech stack for current defaults.
 
 **Scoring weights** (sorted by weight, total = 100%):
 
