@@ -11,7 +11,7 @@
         "quote": "Average claim payout for cancer across life-insurer members trends between RM120,000 and RM250,000 depending on treatment stage and modality.",
         "locator": "LIAM Annual Report 2023, Critical Illness Claims Chapter"
       },
-      "citation_url": "https://www.liam.org.my/industry-statistics"
+      "citation_url": "https://www.liam.org.my/library/?c=22&ct=4"
     },
     "heart_attack": {
       "median_cost_myr": 95000,
@@ -22,7 +22,7 @@
         "quote": "Acute myocardial infarction and stent placement at private hospitals typically costs RM70,000–RM150,000 including ICU stay.",
         "locator": "PIAM Medical Cost Guide 2024, Section 3.2"
       },
-      "citation_url": "https://www.piam.org.my/publications"
+      "citation_url": "https://piam.org.my/in-focus/resources/insurance-data"
     },
     "disability": {
       "median_cost_myr": 250000,
@@ -33,7 +33,7 @@
         "quote": "Long-term care and income-replacement costs for total permanent disability average RM200,000–RM350,000 over a ten-year horizon.",
         "locator": "MTA Industry Statistics 2023, Disability Claims Section"
       },
-      "citation_url": "https://www.malaysiantakaful.com.my/publications"
+      "citation_url": "https://www.malaysiantakaful.com.my/"
     },
     "death": {
       "median_cost_myr": 150000,
@@ -44,7 +44,7 @@
         "quote": "Average death-benefit payouts for primary-earner policies span RM100,000–RM300,000 depending on sum assured and rider attachments.",
         "locator": "LIAM Annual Report 2023, Death Benefit Claims Chapter"
       },
-      "citation_url": "https://www.liam.org.my/industry-statistics"
+      "citation_url": "https://www.liam.org.my/library/?c=22&ct=4"
     }
   }
 }
