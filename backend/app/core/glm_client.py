@@ -1,4 +1,7 @@
-"""Single GLM entry point — every Ilmu/Z.AI call flows through this module.
+"""Single LLM entry point — every chat-completions call flows through this module.
+
+Default provider: OpenAI `gpt-5-mini` via `https://api.openai.com/v1`.
+(Originally wired for Ilmu/Z.AI GLM; the file name is preserved for now.)
 
 Responsibilities:
 - Load `backend/.env` into `os.environ` on first import.
@@ -49,19 +52,19 @@ load_local_env()
 
 
 class AIServiceConfig:
-    """Resolved GLM endpoint config.
+    """Resolved LLM endpoint config (OpenAI-compatible chat completions).
 
     Construct a fresh instance after monkey-patching environment variables —
     tests do this via `ai_service.config = AIServiceConfig()`.
     """
 
     def __init__(self) -> None:
-        self.api_key: str = os.getenv("GLM_API_KEY", "").strip()
+        self.api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
         self.api_base: str = os.getenv(
-            "GLM_API_BASE", "https://api.ilmu.ai/v1"
+            "OPENAI_API_BASE", "https://api.openai.com/v1"
         ).strip()
         self.model: str = (
-            os.getenv("GLM_MODEL", "ilmu-glm-5.1").strip() or "ilmu-glm-5.1"
+            os.getenv("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
         )
         self.is_mock_mode: bool = not self.api_key
 
@@ -97,6 +100,21 @@ def extract_json_from_content(content: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
+_REASONING_MODEL_PREFIXES = ("gpt-5", "o1", "o3")
+
+
+def _adapt_payload_for_provider(payload: dict) -> dict:
+    """OpenAI gpt-5 / o-series reasoning models reject custom temperature/top_p
+    and accept reasoning_effort instead. Strip the former, default the latter.
+    """
+    model = str(payload.get("model", ""))
+    if not model.startswith(_REASONING_MODEL_PREFIXES):
+        return payload
+    adapted = {k: v for k, v in payload.items() if k not in ("temperature", "top_p")}
+    adapted.setdefault("reasoning_effort", "low")
+    return adapted
+
+
 async def post_glm_with_retry(
     url: str,
     headers: dict[str, str],
@@ -107,12 +125,12 @@ async def post_glm_with_retry(
     read_timeout_s: float = 120.0,
     connect_timeout_s: float = 20.0,
 ) -> str:
-    """POST to GLM with SSE streaming; concat `delta.content` chunks and return.
+    """POST to the LLM with SSE streaming; concat `delta.content` chunks and return.
 
-    Streaming is required because the Ilmu gateway closes non-streamed
-    connections past ~60s. Retries exponentially on transport-level errors.
+    Streaming is required for long reasoning calls; retries exponentially on
+    transport-level errors.
     """
-    streaming_payload = {**payload, "stream": True}
+    streaming_payload = _adapt_payload_for_provider({**payload, "stream": True})
     backoff = initial_backoff_s
     last_exc: Exception | None = None
 
@@ -186,7 +204,7 @@ class GLMClient:
     async def complete_json(self, payload: dict) -> dict:
         """POST a chat-completions payload and return the parsed JSON content."""
         if not self._cfg.api_key:
-            raise RuntimeError("GLM_API_KEY is missing")
+            raise RuntimeError("OPENAI_API_KEY is missing")
         content = await post_glm_with_retry(
             url=self.chat_url, headers=self.headers(), payload=payload
         )
